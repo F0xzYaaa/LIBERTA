@@ -11,7 +11,7 @@ export class RoomImage {
   @Column({ name: 'image_path', length: 500 })
   imagePath: string;
 
-  @Column({ length: 200, nullable: true })
+  @Column({ type: 'varchar', length: 200, nullable: true })
   caption: string | null;
 
   @Column({ name: 'is_primary', default: false })
@@ -20,10 +20,10 @@ export class RoomImage {
   @Column({ name: 'display_order', default: 0 })
   displayOrder: number;
 
-  @Column({ name: 'file_size', nullable: true })
+  @Column({ name: 'file_size', type: 'int', nullable: true })
   fileSize: number | null;
 
-  @Column({ name: 'mime_type', length: 50, nullable: true })
+  @Column({ name: 'mime_type', type: 'varchar', length: 50, nullable: true })
   mimeType: string | null;
 
   @CreateDateColumn({ name: 'uploaded_at' })

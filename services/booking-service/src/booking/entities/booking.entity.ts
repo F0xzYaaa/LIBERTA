@@ -57,13 +57,13 @@ export class Booking {
   @Column({ name: 'lock_expires_at', type: 'datetime', nullable: true })
   lockExpiresAt: Date | null;
 
-  @Column({ name: 'payment_note', length: 255, nullable: true })
+  @Column({ name: 'payment_note', type: 'varchar', length: 255, nullable: true })
   paymentNote: string | null;
 
-  @Column({ name: 'slip_image_path', length: 500, nullable: true })
+  @Column({ name: 'slip_image_path', type: 'varchar', length: 500, nullable: true })
   slipImagePath: string | null;
 
-  @Column({ name: 'payment_confirmed_by', nullable: true })
+  @Column({ name: 'payment_confirmed_by', type: 'int', nullable: true })
   paymentConfirmedBy: number | null;
 
   @Column({ name: 'payment_confirmed_at', type: 'datetime', nullable: true })
@@ -72,7 +72,7 @@ export class Booking {
   @Column({ name: 'special_request', type: 'text', nullable: true })
   specialRequest: string | null;
 
-  @Column({ name: 'created_by', nullable: true })
+  @Column({ name: 'created_by', type: 'int', nullable: true })
   createdBy: number | null;
 
   @CreateDateColumn({ name: 'created_at' })

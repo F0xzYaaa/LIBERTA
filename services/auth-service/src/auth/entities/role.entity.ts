@@ -8,7 +8,7 @@ export class Role {
   @Column({ name: 'role_name', length: 30, unique: true })
   roleName: string;
 
-  @Column({ length: 200, nullable: true })
+  @Column({ type: 'varchar', length: 200, nullable: true })
   description: string | null;
 
   @CreateDateColumn({ name: 'created_at' })

@@ -20,10 +20,10 @@ export class Guest {
   @Column({ length: 20 })
   phone: string;
 
-  @Column({ length: 100, nullable: true })
+  @Column({ type: 'varchar', length: 100, nullable: true })
   email: string | null;
 
-  @Column({ name: 'id_card', length: 20, unique: true, nullable: true })
+  @Column({ name: 'id_card', type: 'varchar', length: 20, unique: true, nullable: true })
   idCard: string | null;
 
   @Column({ length: 50, default: 'Thai' })

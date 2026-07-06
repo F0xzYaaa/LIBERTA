@@ -26,6 +26,7 @@ export class BookingController {
   }
 
   @Post('lookup')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Public: look up a booking by reference + phone/email (two-factor)' })
   @ApiResponse({ status: 200, type: LookupBookingResponseDto })
   @ApiResponse({ status: 404, description: 'No match for the reference + contact combination' })

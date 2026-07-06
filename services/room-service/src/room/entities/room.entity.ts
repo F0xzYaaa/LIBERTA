@@ -37,7 +37,7 @@ export class Room {
   @Column({ type: 'enum', enum: RoomStatus, default: RoomStatus.Available })
   status: RoomStatus;
 
-  @Column({ length: 255, nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   notes: string | null;
 
   @CreateDateColumn({ name: 'created_at' })

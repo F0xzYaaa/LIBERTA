@@ -15,6 +15,6 @@ export class Guest {
   @Column({ length: 20 })
   phone: string;
 
-  @Column({ length: 100, nullable: true })
+  @Column({ type: 'varchar', length: 100, nullable: true })
   email: string | null;
 }
