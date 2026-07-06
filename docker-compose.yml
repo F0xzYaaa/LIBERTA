@@ -1,0 +1,188 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: liberta-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: liberta_hotel
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    networks:
+      - liberta-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: liberta-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - liberta-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: liberta-auth-service
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: 3001
+      DB_HOST: mysql
+      REDIS_HOST: redis
+    ports:
+      - "3001:3001"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - liberta-net
+
+  mfa-service:
+    build:
+      context: ./services/mfa-service
+      dockerfile: Dockerfile
+    container_name: liberta-mfa-service
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: 3002
+      DB_HOST: mysql
+      REDIS_HOST: redis
+    ports:
+      - "3002:3002"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - liberta-net
+
+  guest-service:
+    build:
+      context: ./services/guest-service
+      dockerfile: Dockerfile
+    container_name: liberta-guest-service
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: 3003
+      DB_HOST: mysql
+    ports:
+      - "3003:3003"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - liberta-net
+
+  room-service:
+    build:
+      context: ./services/room-service
+      dockerfile: Dockerfile
+    container_name: liberta-room-service
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: 3004
+      DB_HOST: mysql
+    ports:
+      - "3004:3004"
+    volumes:
+      - room_images:/app/uploads/rooms
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - liberta-net
+
+  booking-service:
+    build:
+      context: ./services/booking-service
+      dockerfile: Dockerfile
+    container_name: liberta-booking-service
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: 3005
+      DB_HOST: mysql
+      REDIS_HOST: redis
+    ports:
+      - "3005:3005"
+    volumes:
+      - slip_images:/app/uploads/slips
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - liberta-net
+
+  admin-service:
+    build:
+      context: ./services/admin-service
+      dockerfile: Dockerfile
+    container_name: liberta-admin-service
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: 3006
+      DB_HOST: mysql
+      REDIS_HOST: redis
+    ports:
+      - "3006:3006"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - liberta-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: liberta-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    networks:
+      - liberta-net
+
+networks:
+  liberta-net:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
+  room_images:
+  slip_images:

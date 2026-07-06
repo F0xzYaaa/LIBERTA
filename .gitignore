@@ -1,0 +1,36 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+dist/
+build/
+coverage/
+*.log
+npm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads (runtime data, not source)
+services/room-service/uploads/
+services/booking-service/uploads/
+
+# TLS certs (self-signed, generated per-deploy)
+nginx/certs/*.key
+nginx/certs/*.crt
+nginx/certs/*.pem
+
+# Docker
+docker-compose.override.yml
