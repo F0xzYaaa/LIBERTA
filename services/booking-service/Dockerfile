@@ -15,7 +15,8 @@ COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
 
-RUN addgroup -S liberta && adduser -S liberta -G liberta
+RUN addgroup -S liberta && adduser -S liberta -G liberta \
+  && mkdir -p /app/uploads/slips && chown -R liberta:liberta /app/uploads
 USER liberta
 
 EXPOSE 3005

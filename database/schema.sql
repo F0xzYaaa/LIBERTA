@@ -184,6 +184,7 @@ CREATE INDEX idx_booking_room   ON Booking(room_id);
 CREATE INDEX idx_booking_dates  ON Booking(check_in, check_out);
 CREATE INDEX idx_booking_status ON Booking(status);
 CREATE INDEX idx_booking_lock   ON Booking(lock_expires_at);
+CREATE INDEX idx_booking_payment_confirmed_at ON Booking(payment_confirmed_at);
 
 -- ---------- BookingLog (audit trail of status changes) ----------
 CREATE TABLE BookingLog (

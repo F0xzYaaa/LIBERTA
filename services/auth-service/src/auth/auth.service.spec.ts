@@ -1,4 +1,10 @@
-import { ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
@@ -17,7 +23,12 @@ jest.mock('bcrypt', () => ({
 
 describe('AuthService', () => {
   let service: AuthService;
-  let employeeRepo: { findOne: jest.Mock; create: jest.Mock; save: jest.Mock };
+  let employeeRepo: {
+    findOne: jest.Mock;
+    create: jest.Mock;
+    save: jest.Mock;
+    createQueryBuilder: jest.Mock;
+  };
   let roleRepo: { findOne: jest.Mock };
   let redis: { set: jest.Mock; get: jest.Mock; del: jest.Mock };
   let jwt: { sign: jest.Mock; verify: jest.Mock };
@@ -40,7 +51,12 @@ describe('AuthService', () => {
   };
 
   beforeEach(async () => {
-    employeeRepo = { findOne: jest.fn(), create: jest.fn(), save: jest.fn() };
+    employeeRepo = {
+      findOne: jest.fn(),
+      create: jest.fn(),
+      save: jest.fn(),
+      createQueryBuilder: jest.fn(),
+    };
     roleRepo = { findOne: jest.fn() };
     redis = { set: jest.fn(), get: jest.fn(), del: jest.fn() };
     jwt = { sign: jest.fn(), verify: jest.fn() };
@@ -236,6 +252,93 @@ describe('AuthService', () => {
       expect(employeeRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ lastLoginAt: expect.any(Date) }),
       );
+    });
+  });
+
+  describe('findAllEmployees', () => {
+    function makeQueryBuilder(rows: Employee[]) {
+      return {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(rows),
+      };
+    }
+
+    it('lists all employees with no filters, never exposing passwordHash', async () => {
+      const qb = makeQueryBuilder([activeEmployee]);
+      employeeRepo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.findAllEmployees({});
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).not.toHaveProperty('passwordHash');
+      expect(result[0].roleName).toBe('Staff');
+      expect(qb.andWhere).not.toHaveBeenCalled();
+    });
+
+    it('applies roleId and isActive filters when provided', async () => {
+      const qb = makeQueryBuilder([activeEmployee]);
+      employeeRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.findAllEmployees({ roleId: 2, isActive: 'true' });
+
+      expect(qb.andWhere).toHaveBeenCalledWith('employee.roleId = :roleId', { roleId: 2 });
+      expect(qb.andWhere).toHaveBeenCalledWith('employee.isActive = :isActive', {
+        isActive: true,
+      });
+    });
+  });
+
+  describe('findEmployeeById', () => {
+    it('returns an employee summary when found', async () => {
+      employeeRepo.findOne.mockResolvedValue(activeEmployee);
+
+      const result = await service.findEmployeeById(1);
+
+      expect(result.employeeId).toBe(1);
+      expect(result).not.toHaveProperty('passwordHash');
+    });
+
+    it('throws NotFoundException when the employee does not exist', async () => {
+      employeeRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.findEmployeeById(999)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('updateEmployee', () => {
+    it('updates isActive and returns the new summary', async () => {
+      employeeRepo.findOne.mockResolvedValue({ ...activeEmployee });
+      employeeRepo.save.mockImplementation((entity) => Promise.resolve(entity));
+
+      const result = await service.updateEmployee(1, { isActive: false }, 2);
+
+      expect(result.isActive).toBe(false);
+      expect(employeeRepo.save).toHaveBeenCalledWith(expect.objectContaining({ isActive: false }));
+    });
+
+    it('throws NotFoundException when the target employee does not exist', async () => {
+      employeeRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.updateEmployee(999, { isActive: false }, 2)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws BadRequestException when roleId does not reference an existing Role', async () => {
+      employeeRepo.findOne.mockResolvedValue({ ...activeEmployee });
+      roleRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.updateEmployee(1, { roleId: 999 }, 2)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('throws ForbiddenException when an admin attempts to modify their own record (self-lockout guard)', async () => {
+      await expect(service.updateEmployee(2, { isActive: false }, 2)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(employeeRepo.findOne).not.toHaveBeenCalled();
     });
   });
 });

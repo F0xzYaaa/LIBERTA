@@ -1,0 +1,214 @@
+# LIBERTA หัวหิน — Production compose (VPS)
+#
+# Live: mysql, redis, nginx, auth/mfa/guest/room/booking/admin-service,
+# frontend (Stage 1-5, all built). Pulls pre-built images from Docker Hub —
+# nothing is built on the VPS itself.
+#
+# Unlike docker-compose.yml (dev), no service ports are published to the host
+# except nginx 80/443 — everything else is reached over the internal network.
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: liberta-mysql
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    networks:
+      - liberta-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: liberta-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - liberta-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  auth-service:
+    image: ${DOCKERHUB_USER}/liberta-auth:${TAG:-latest}
+    container_name: liberta-auth-service
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    environment:
+      PORT: 3001
+      DB_HOST: mysql
+      REDIS_HOST: redis
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks:
+      - liberta-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  mfa-service:
+    image: ${DOCKERHUB_USER}/liberta-mfa:${TAG:-latest}
+    container_name: liberta-mfa-service
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    environment:
+      PORT: 3002
+      DB_HOST: mysql
+      REDIS_HOST: redis
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks:
+      - liberta-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  guest-service:
+    image: ${DOCKERHUB_USER}/liberta-guest:${TAG:-latest}
+    container_name: liberta-guest-service
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    environment:
+      PORT: 3003
+      DB_HOST: mysql
+    depends_on:
+      mysql: { condition: service_healthy }
+    networks:
+      - liberta-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  room-service:
+    image: ${DOCKERHUB_USER}/liberta-room:${TAG:-latest}
+    container_name: liberta-room-service
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    environment:
+      PORT: 3004
+      DB_HOST: mysql
+    volumes:
+      - room_images:/app/uploads/rooms
+    depends_on:
+      mysql: { condition: service_healthy }
+    networks:
+      - liberta-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3004/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  booking-service:
+    image: ${DOCKERHUB_USER}/liberta-booking:${TAG:-latest}
+    container_name: liberta-booking-service
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    environment:
+      PORT: 3005
+      DB_HOST: mysql
+      REDIS_HOST: redis
+    volumes:
+      - slip_images:/app/uploads/slips
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks:
+      - liberta-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3005/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  admin-service:
+    image: ${DOCKERHUB_USER}/liberta-admin:${TAG:-latest}
+    container_name: liberta-admin-service
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    environment:
+      PORT: 3006
+      DB_HOST: mysql
+      ADMIN_DB_USERNAME: ${ADMIN_DB_USERNAME}
+      ADMIN_DB_PASSWORD: ${ADMIN_DB_PASSWORD}
+      REDIS_HOST: redis
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks:
+      - liberta-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3006/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  frontend:
+    image: ${DOCKERHUB_USER}/liberta-frontend:${TAG:-latest}
+    container_name: liberta-frontend
+    restart: unless-stopped
+    networks:
+      - liberta-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: liberta-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/proxy_params.conf:/etc/nginx/proxy_params.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - room_images:/var/www/uploads/rooms:ro
+    depends_on:
+      - auth-service
+      - mfa-service
+      - guest-service
+      - room-service
+      - booking-service
+      - admin-service
+      - frontend
+    networks:
+      - liberta-net
+
+networks:
+  liberta-net:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
+  room_images:
+  slip_images:

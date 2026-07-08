@@ -1,13 +1,27 @@
-import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
+import { EmployeeSummaryResponseDto } from './dto/employee-summary-response.dto';
+import { FindAllEmployeesDto } from './dto/find-all-employees.dto';
 import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { RegisterEmployeeDto } from './dto/register-employee.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { TokenResponseDto } from './dto/token-response.dto';
+import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Roles, RolesGuard } from './guards/roles.guard';
 import { JwtPayload } from './strategies/jwt.strategy';
@@ -58,5 +72,47 @@ export class AuthController {
   async logout(@Req() req: RequestWithUser): Promise<{ message: string }> {
     await this.authService.logout(req.user.sub);
     return { message: 'Logged out' };
+  }
+
+  @Get('employees')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('Admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin-only: list employees, optionally filtered by role/active state' })
+  @ApiResponse({ status: 200, type: [EmployeeSummaryResponseDto] })
+  async findAllEmployees(
+    @Query() filters: FindAllEmployeesDto,
+  ): Promise<EmployeeSummaryResponseDto[]> {
+    return this.authService.findAllEmployees(filters);
+  }
+
+  @Get('employees/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('Admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin-only: get a single employee by id' })
+  @ApiResponse({ status: 200, type: EmployeeSummaryResponseDto })
+  @ApiResponse({ status: 404, description: 'Employee not found' })
+  async findEmployeeById(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<EmployeeSummaryResponseDto> {
+    return this.authService.findEmployeeById(id);
+  }
+
+  @Patch('employees/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('Admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin-only: activate/deactivate an employee or change their role' })
+  @ApiResponse({ status: 200, type: EmployeeSummaryResponseDto })
+  @ApiResponse({ status: 404, description: 'Employee not found' })
+  @ApiResponse({ status: 400, description: 'roleId does not reference an existing Role' })
+  @ApiResponse({ status: 403, description: 'Admins cannot modify their own account' })
+  async updateEmployee(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateEmployeeDto,
+    @Req() req: RequestWithUser,
+  ): Promise<EmployeeSummaryResponseDto> {
+    return this.authService.updateEmployee(id, dto, req.user.sub);
   }
 }

@@ -11,4 +11,6 @@ export const configSchema = Joi.object({
   REDIS_PORT: Joi.number().default(6379),
   JWT_ACCESS_SECRET: Joi.string().min(32).required(),
   BOOKING_DRAFT_LOCK_MINUTES: Joi.number().default(15),
+  BOOKING_SLIP_UPLOAD_DIR: Joi.string().default('/app/uploads/slips'),
+  BOOKING_SLIP_MAX_SIZE_BYTES: Joi.number().default(5 * 1024 * 1024),
 });

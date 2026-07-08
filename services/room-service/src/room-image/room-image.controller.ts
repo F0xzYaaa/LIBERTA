@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   Param,
   ParseIntPipe,
   Post,
@@ -17,6 +18,7 @@ import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles, RolesGuard } from '../auth/guards/roles.guard';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
+import { RoomImageResponseDto } from './dto/room-image-response.dto';
 import { UploadRoomImageDto } from './dto/upload-room-image.dto';
 import { RoomImageService } from './room-image.service';
 
@@ -32,6 +34,14 @@ const MULTER_HARD_CAP_BYTES = 10 * 1024 * 1024;
 @Controller('rooms/:id/images')
 export class RoomImageController {
   constructor(private readonly roomImageService: RoomImageService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Public: list all images for a room, ordered by display order' })
+  @ApiResponse({ status: 200, type: [RoomImageResponseDto] })
+  @ApiResponse({ status: 404, description: 'Room not found' })
+  async findByRoomId(@Param('id', ParseIntPipe) roomId: number): Promise<RoomImageResponseDto[]> {
+    return this.roomImageService.findByRoomId(roomId);
+  }
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)

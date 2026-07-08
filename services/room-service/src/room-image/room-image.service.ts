@@ -7,6 +7,7 @@ import * as path from 'path';
 import { Repository } from 'typeorm';
 import { SecurityLogger } from '../common/security-logger.service';
 import { Room } from '../room/entities/room.entity';
+import { RoomImageResponseDto } from './dto/room-image-response.dto';
 import { UploadRoomImageDto } from './dto/upload-room-image.dto';
 import { RoomImage } from './entities/room-image.entity';
 
@@ -75,11 +76,18 @@ export class RoomImageService {
     const fullPath = path.join(uploadDir, filename);
     await writeFile(fullPath, file.buffer);
 
+    const isPrimary = dto.isPrimary ?? false;
+    if (isPrimary) {
+      // Only one image per room may be primary — clear any existing one first,
+      // otherwise two images can both end up with isPrimary=true.
+      await this.imageRepo.update({ roomId, isPrimary: true }, { isPrimary: false });
+    }
+
     const image = this.imageRepo.create({
       roomId,
       imagePath: `/uploads/rooms/${filename}`,
       caption: dto.caption ?? null,
-      isPrimary: dto.isPrimary ?? false,
+      isPrimary,
       fileSize: file.size,
       mimeType,
     });
@@ -94,5 +102,33 @@ export class RoomImageService {
     });
 
     return saved;
+  }
+
+  async findByRoomId(roomId: number): Promise<RoomImageResponseDto[]> {
+    const room = await this.roomRepo.findOne({ where: { roomId } });
+    if (!room) {
+      throw new NotFoundException('Room not found');
+    }
+
+    // Primary image first within the same display order; a room with zero images
+    // simply returns an empty array (the room itself exists, so this is not a 404).
+    const images = await this.imageRepo.find({
+      where: { roomId },
+      order: { displayOrder: 'ASC', isPrimary: 'DESC' },
+    });
+
+    return images.map((image) => this.toResponseDto(image));
+  }
+
+  private toResponseDto(image: RoomImage): RoomImageResponseDto {
+    return {
+      imageId: image.imageId,
+      roomId: image.roomId,
+      imagePath: image.imagePath,
+      caption: image.caption,
+      isPrimary: image.isPrimary,
+      displayOrder: image.displayOrder,
+      uploadedAt: image.uploadedAt,
+    };
   }
 }

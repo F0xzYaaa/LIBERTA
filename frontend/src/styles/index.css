@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * LIBERTA หัวหิน — global styles.
+ *
+ * No font files are bundled (this sandbox has no access to Google Fonts or
+ * any external font CDN), so instead of @font-face we lean on a system font
+ * fallback chain configured in tailwind.config.ts (font-serif / font-sans)
+ * that evokes the same "boutique hotel meets modern tech" character:
+ *   - font-serif -> "Playfair Display", Georgia, "Times New Roman", serif
+ *   - font-sans  -> Inter, -apple-system, "Segoe UI", sans-serif
+ * If/when real font files are added later, @font-face rules can be added
+ * here without touching any component code.
+ */
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-cream font-sans text-primary-dark antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-serif text-primary-dark;
+  }
+}

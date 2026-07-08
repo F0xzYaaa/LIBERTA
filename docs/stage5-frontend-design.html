@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Design: Stage 5 — Frontend Architecture | LIBERTA หัวหิน</title>
+<style>
+  :root {
+    --forest: #2E4432;
+    --dark-green: #1A2A1D;
+    --gold: #B49872;
+    --cream: #F5F0E3;
+    --sage-gray: #6B7268;
+    --sage-teal: #5A7A6E;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--cream);
+    color: var(--dark-green);
+    font-family: "Inter", "Segoe UI", -apple-system, sans-serif;
+    line-height: 1.65;
+  }
+  h1, h2, h3, h4 {
+    font-family: "Playfair Display", Cambria, Georgia, serif;
+    color: var(--forest);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+  header.hero {
+    background: linear-gradient(135deg, var(--dark-green), var(--forest));
+    color: var(--cream);
+    padding: 48px 40px 40px;
+    border-bottom: 6px solid var(--gold);
+  }
+  header.hero h1 {
+    color: var(--cream);
+    margin: 0 0 8px;
+    font-size: 2.1rem;
+  }
+  header.hero p.subtitle {
+    color: var(--cream);
+    opacity: 0.85;
+    margin: 0;
+    font-size: 1.05rem;
+  }
+  header.hero .meta {
+    margin-top: 18px;
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 0 40px 80px;
+  }
+  nav.toc {
+    background: #fff;
+    border: 1px solid #e4dcc9;
+    border-radius: 12px;
+    padding: 20px 28px;
+    margin: -28px auto 40px;
+    max-width: 900px;
+    box-shadow: 0 6px 18px rgba(26,42,29,0.08);
+  }
+  nav.toc h2 {
+    font-size: 1rem;
+    margin: 0 0 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--sage-gray);
+  }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+  nav.toc li { margin-bottom: 6px; font-size: 0.92rem; }
+  nav.toc a { color: var(--forest); text-decoration: none; }
+  nav.toc a:hover { color: var(--gold); text-decoration: underline; }
+
+  section { margin-top: 52px; }
+  h2 { font-size: 1.55rem; border-bottom: 2px solid var(--gold); padding-bottom: 8px; margin-bottom: 20px;}
+  h3 { font-size: 1.2rem; margin-top: 32px; margin-bottom: 10px; }
+  h4 { font-size: 1.02rem; color: var(--sage-teal); margin-bottom: 6px; }
+
+  p { margin: 0 0 14px; }
+  ul, ol { margin: 0 0 14px; padding-left: 24px; }
+  li { margin-bottom: 6px; }
+
+  code {
+    font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+    background: #eee6d3;
+    color: var(--dark-green);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 0.88em;
+  }
+  pre {
+    background: var(--dark-green);
+    color: #eaf0ea;
+    padding: 18px 20px;
+    border-radius: 10px;
+    overflow-x: auto;
+    font-size: 0.84rem;
+    line-height: 1.55;
+    box-shadow: inset 0 0 0 1px rgba(180,152,114,0.25);
+  }
+  pre code {
+    background: none;
+    color: inherit;
+    padding: 0;
+    font-size: inherit;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 20px;
+    font-size: 0.9rem;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  th, td {
+    border: 1px solid #e4dcc9;
+    padding: 8px 12px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--forest); color: var(--cream); font-weight: 600; }
+  tr:nth-child(even) td { background: #faf7ef; }
+
+  .card {
+    background: #fff;
+    border: 1px solid #e4dcc9;
+    border-left: 5px solid var(--sage-teal);
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin: 18px 0;
+    box-shadow: 0 3px 10px rgba(26,42,29,0.05);
+  }
+  .card.decision { border-left-color: var(--gold); }
+  .card.endpoint { border-left-color: var(--forest); }
+  .card.flow { border-left-color: var(--sage-gray); }
+  .card h4 { margin-top: 0; }
+
+  .badge {
+    display: inline-block;
+    background: var(--gold);
+    color: var(--dark-green);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 10px;
+    border-radius: 999px;
+    margin-right: 8px;
+  }
+  .badge.public { background: var(--sage-teal); color: #fff; }
+  .badge.new { background: var(--forest); color: var(--cream); }
+  .badge.open { background: #c96a3a; color: #fff; }
+
+  .status-200 { color: #2e6b3e; font-weight: 700; }
+  .status-400, .status-404, .status-409 { color: #a5502a; font-weight: 700; }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  @media (max-width: 760px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    nav.toc ol { columns: 1; }
+    .wrap { padding: 0 20px 60px; }
+    header.hero { padding: 36px 20px 30px; }
+  }
+
+  blockquote {
+    margin: 24px 0;
+    padding: 16px 22px;
+    background: #eef1ec;
+    border-left: 5px solid var(--forest);
+    border-radius: 8px;
+    font-style: italic;
+    color: var(--sage-gray);
+  }
+
+  .filetree {
+    background: #fff;
+    border: 1px solid #e4dcc9;
+    border-radius: 10px;
+    padding: 18px 22px;
+  }
+  .filetree pre { background: transparent; color: var(--dark-green); box-shadow: none; padding: 0; }
+
+  footer {
+    text-align: center;
+    padding: 30px 20px 50px;
+    color: var(--sage-gray);
+    font-size: 0.85rem;
+  }
+  hr.divider {
+    border: none;
+    border-top: 1px dashed #cdbfa0;
+    margin: 40px 0;
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <h1>Design: Stage 5 — Frontend Architecture</h1>
+  <p class="subtitle">React 18 + Vite + TypeScript + Tailwind CSS + react-router — LIBERTA หัวหิน Hotel Management System</p>
+  <div class="meta">
+    <span>Role: Architect Agent</span>
+    <span>Stage: 5 (Frontend)</span>
+    <span>Status: Ready for Implementer</span>
+  </div>
+</header>
+
+<div class="wrap">
+
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#context">Context</a></li>
+    <li><a href="#decisions">Decisions (1–8)</a></li>
+    <li><a href="#db">Database Design</a></li>
+    <li><a href="#api">API Contracts (2 new endpoints)</a></li>
+    <li><a href="#routing">Routing Map</a></li>
+    <li><a href="#folders">Folder Structure</a></li>
+    <li><a href="#dataflow">Data Flow (4 flows)</a></li>
+    <li><a href="#auth">Auth / Session Strategy</a></li>
+    <li><a href="#libs">Libraries to Use</a></li>
+    <li><a href="#handoff">Handoff</a></li>
+  </ol>
+</nav>
+
+<section id="context">
+<h2>Context</h2>
+<p>Planner Task 1: design the technical architecture for Stage 5 (the frontend), covering the two CES-approved backend gap-fills plus the full React application architecture, routing, typed API client, auth/session strategy, rate-limit-safe request sequencing, and production Nginx/Docker wiring. This design is grounded in the actual controllers/DTOs/entities read directly from <code>services/*/src</code> (auth, mfa, guest, room, booking, admin) and the real <code>nginx/nginx.conf</code> / <code>nginx/nginx.prod.conf</code> / <code>docker-compose*.yml</code>, not the original <code>CLAUDE_CODE_PROMPT.md</code> spec, which has drifted in several places.</p>
+
+<h3>Key facts discovered that shape this design</h3>
+<ul>
+<li>All 6 services share <strong>one MySQL database</strong> (<code>liberta_hotel</code>) &mdash; services duplicate read-only TypeORM entities for tables they do not own (e.g. booking-service has its own <code>Room</code>, <code>RoomType</code>, <code>Guest</code> entities for joins). This is the established pattern the two new endpoints must follow.</li>
+<li><strong>No CORS is enabled</strong> on any service (<code>app.enableCors()</code> is never called). The frontend must be served same-origin with <code>/api/*</code> (through Nginx) &mdash; this is already how dev and prod are wired, and it removes any need for CORS/cookie cross-site config.</li>
+<li>Tokens travel as <strong>plain JSON</strong> (<code>TokenResponseDto { accessToken, refreshToken, expiresIn }</code>), never as <code>Set-Cookie</code>. This constrains the session-storage decision &mdash; httpOnly cookies are not an option without a backend change, out of scope here.</li>
+<li><code>room-service</code> public <code>GET /rooms</code> / <code>GET /rooms/:id</code> return <strong>raw TypeORM entities</strong>, not response DTOs, and load <strong>no relations</strong> &mdash; <code>room.roomTypeId</code> is present but <code>room.roomType</code> (the joined object) is not. The frontend must independently fetch <code>/room-types</code> and join client-side. This directly contradicts an assumption the original spec endpoint list would encourage.</li>
+<li><code>BookingResponseDto</code> never carries <code>slipImagePath</code> &mdash; only <code>hasSlip: boolean</code>. The slip is only reachable via <code>GET /bookings/:id/slip</code>, an authenticated binary stream.</li>
+<li><code>general_limit</code> (120r/min) is configured with <strong>zero burst</strong> on every location except the four sensitive-endpoint exact matches (<code>= /api/auth/login</code>, <code>= /api/guests/register</code>, <code>= /api/bookings/draft</code>, <code>= /api/bookings/lookup</code>, each <code>burst=3 nodelay</code>). Zero burst means nginx leaky bucket rejects (503) any second request arriving inside the same ~500ms slot &mdash; this is the direct cause of the Stage 4 503s and drives the dashboard-sequencing design.</li>
+<li>Employee <code>roleId</code> seed values: <code>1 = Staff</code>, <code>2 = Admin</code>. <code>JwtPayload { sub, username, roleId, roleName }</code> is duplicated verbatim across every service jwt.strategy.ts.</li>
+</ul>
+</section>
+
+<section id="decisions">
+<h2>Decisions</h2>
+
+<div class="card decision">
+<h4>Decision 1 &mdash; New endpoint <code>GET /rooms/:id/images</code> lives in room-service</h4>
+<p><strong>Choice:</strong> Add to <code>room-image.controller.ts</code> in room-service, alongside the existing <code>POST /rooms/:id/images</code> upload endpoint. Public, no auth (matches <code>GET /rooms</code>, <code>GET /rooms/:id</code>, <code>GET /room-types</code> &mdash; all public reads).</p>
+<p><strong>Alternatives considered:</strong> Expose from admin-service (rejected &mdash; admin-service is read-only <em>dashboard aggregation</em> only, per its DB grants which do not even include <code>RoomImage</code>). Fold into <code>GET /rooms/:id</code> as a nested array (rejected &mdash; <code>RoomController</code> and <code>RoomImageController</code> are already split into separate controllers/modules; <code>room.service.ts</code> currently has zero knowledge of the <code>RoomImage</code> entity).</p>
+<p><strong>Rationale:</strong> <code>room-image.service.ts</code> already injects <code>Repository&lt;RoomImage&gt;</code> and <code>Repository&lt;Room&gt;</code> (for the 404 check) &mdash; a <code>findAllForRoom</code> method is a one-line addition to a module that already owns this table writes.</p>
+<p><strong>Trade-offs:</strong> None significant &mdash; pure additive, non-breaking read endpoint.</p>
+</div>
+
+<div class="card decision">
+<h4>Decision 2 &mdash; New endpoint <code>GET /bookings/available-room</code> lives in booking-service, not room-service</h4>
+<p><strong>Choice:</strong> Add to <code>booking.controller.ts</code> in booking-service. Public, no auth (guests have no JWT at all &mdash; <code>CreateDraftBookingDto</code> takes a raw <code>guestId</code>, established in Stage 3, not a bearer token).</p>
+<p><strong>Alternatives considered:</strong></p>
+<ol>
+<li>Put it in room-service, since &quot;finding a room&quot; sounds like a room-service concern.</li>
+<li>Have room-service call a new internal endpoint on booking-service (mirroring the <code>InternalKeyGuard</code>-protected <code>auth.internal.controller.ts</code> pattern).</li>
+</ol>
+<p><strong>Rationale for rejecting both:</strong> The overlap-conflict query (<code>status IN (Draft, Reserved, CheckedIn)</code> plus date-range overlap plus stale-Draft handling) is booking-service authoritative logic, already implemented once in <code>booking.service.ts#createDraft</code>. room-service has <strong>no <code>Booking</code> entity at all</strong>. booking-service, by contrast, <strong>already imports read-only <code>Room</code> and <code>RoomType</code> entities</strong> for exactly this kind of cross-table join &mdash; no new entity, no new service-to-service call, no new internal auth surface.</p>
+<p><strong>Trade-offs:</strong> booking-service public surface grows slightly; &quot;room availability&quot; now spans two services depending on the question asked. Judged acceptable since it mirrors DB ownership, not an arbitrary API split.</p>
+<p><span class="badge open">Open question for CES</span> Should this endpoint additionally exclude rooms with <code>Room.status IN (&#39;Maintenance&#39;,&#39;OutOfService&#39;)</code>? The existing <code>createDraft</code> write-path does <strong>not</strong> check <code>Room.status</code> today (only <code>Booking</code> overlap) &mdash; an existing Stage 3 decision this design does not change. Defaulted to <strong>also excluding Maintenance/OutOfService rooms</strong> in this new read-only resolver only (does not gate <code>createDraft</code> any more strictly than before). Proceeding with this default so the implementer is not blocked; reviewer/CES should confirm.</p>
+</div>
+
+<div class="card decision">
+<h4>Decision 3 &mdash; Token storage: in-memory access token plus <code>sessionStorage</code> refresh token</h4>
+<p><strong>Choice:</strong> Access token lives only in a React context/module-level variable (never persisted). Refresh token is written to <code>sessionStorage</code> under <code>liberta_refresh_token</code>.</p>
+<p><strong>Alternatives considered:</strong> (a) both tokens in <code>localStorage</code> (simplest, most common in tutorials); (b) both in-memory only, no persistence (most secure, but loses session on every refresh &mdash; bad UX for a staff dashboard used all shift); (c) httpOnly cookies (best practice, but requires backend changes &mdash; auth/mfa-service return tokens as plain JSON body, out of scope for a frontend-only stage).</p>
+<p><strong>Rationale:</strong> <code>sessionStorage</code> is tab-scoped and cleared on tab/browser close &mdash; no long-lived disk artifact like <code>localStorage</code>. Keeping the access token purely in memory means a successful XSS exfiltration of storage only yields the refresh token, which still requires an active, loggable, revocable <code>/auth/refresh</code> call to become useful.</p>
+<p><strong>Trade-offs:</strong> Page refresh requires a silent <code>POST /auth/refresh</code> round-trip before rendering protected routes. Closing the tab logs the user out (arguably a feature for a shared front-desk terminal). <strong>Security-relevant &mdash; flagged for the same security-auditor pass every other stage auth-adjacent decision received.</strong></p>
+</div>
+</section>
+
+<div class="card decision">
+<h4>Decision 4 &mdash; <code>mfaRequired</code> / <code>mfaEnrollmentRequired</code> resolved by one shared MFA route</h4>
+<p><strong>Choice:</strong> <code>/admin/mfa</code> is a single route/component that receives <code>{ tempToken, mfaRequired, mfaEnrollmentRequired }</code> via router state and renders one of two sub-views based on <code>mfaEnrollmentRequired</code>.</p>
+<p><strong>Rationale:</strong> Both branches converge on <code>POST /mfa/verify { tempToken, totpCode }</code> &mdash; splitting into two routes would duplicate the verify form and the backup-code fallback. <code>mfaRequired: false</code> has no reachable code path under the current contract (login never returns a JWT pair directly); not building dead code for it, just documenting the gap.</p>
+<p><strong>Trade-offs:</strong> None.</p>
+</div>
+
+<div class="card decision">
+<h4>Decision 5 &mdash; <code>axios</code> plus one relative-path client, not per-service base URLs</h4>
+<p><strong>Choice:</strong> One <code>axios</code> instance, <code>baseURL: &#39;/api&#39;</code>, matching how Nginx already strips <code>/api/&lt;service-path&gt;</code> before proxying.</p>
+<p><strong>Alternatives considered:</strong> <code>fetch</code> directly (rejected &mdash; interceptors would need hand-rolling per call site); per-service base URLs like <code>VITE_AUTH_URL</code>, <code>VITE_BOOKING_URL</code> (rejected &mdash; no CORS/same-origin already, and per-service URLs risk bypassing Nginx rate limiting by hitting a service port directly).</p>
+</div>
+
+<div class="card decision">
+<h4>Decision 6 &mdash; TanStack Query for server-state, not bespoke <code>useEffect</code>/<code>useState</code></h4>
+<p><strong>Choice:</strong> <code>@tanstack/react-query</code> for all read (GET) traffic: caching, <code>staleTime</code>, dedup, controlled retry.</p>
+<p><strong>Alternatives considered:</strong> Plain <code>useEffect</code>/<code>useState</code> per page (rejected &mdash; every page would hand-roll cache/loading/error logic and, critically, hand-roll not refetching on every focus/remount &mdash; exactly the accidental burst that caused the Stage 4 503s); SWR (equally valid, TanStack Query more widely documented for this exact pattern).</p>
+<p><strong>Rationale:</strong> <code>general_limit</code> zero-burst configuration makes &quot;do not refetch things you do not have to&quot; a correctness requirement, not an optimization.</p>
+</div>
+
+<div class="card decision">
+<h4>Decision 7 &mdash; Admin dashboard 4 calls sequenced with an enforced minimum gap, never <code>Promise.all</code></h4>
+<p>Full detail in <a href="#dataflow-3">Data Flow #3</a>. Summary: <code>general_limit</code> = 120r/m with <strong>no <code>burst=</code> parameter</strong> &rarr; nginx treats this as <code>burst=0</code>: only one request per 500ms slot is admitted, everything else in that window is rejected (503) with zero queuing. <code>Promise.all</code> across 4 endpoints guarantees at least 3 of 4 fail. Fix must be a client-side minimum-gap enforcer, not retries alone.</p>
+</div>
+
+<div class="card decision">
+<h4>Decision 8 &mdash; Production frontend ships as its own Nginx-serving container</h4>
+<p><strong>Choice:</strong> <code>frontend/Dockerfile</code> multi-stage: stage 1 (<code>node:20-alpine</code>) <code>npm ci &amp;&amp; npm run build</code>; stage 2 (<code>nginx:1.27-alpine</code>) copies <code>dist/</code> into <code>/usr/share/nginx/html</code>, with a small <code>frontend/nginx.frontend.conf</code> doing <code>try_files $uri /index.html;</code> SPA fallback on port 80 internally. The reverse-proxy <code>location /</code> becomes a plain <code>proxy_pass http://frontend:80;</code> &mdash; no <code>try_files</code> at that layer.</p>
+<p><strong>Alternatives considered:</strong> Shared named volume plus <code>root</code>/<code>try_files</code> directly in the reverse-proxy Nginx, populated by a one-shot init container. Rejected: (a) breaks the &quot;every service ships its own image&quot; convention every other service follows; (b) no existing pattern for a build-then-copy init container; (c) the currently-commented-out placeholder in <code>nginx.prod.conf</code> (<code>proxy_pass ...; try_files $uri /index.html;</code> in one location block) is actually <strong>invalid nginx</strong> &mdash; this design replaces it with a correct two-layer split.</p>
+<p><strong>Trade-offs:</strong> One extra proxy hop for the frontend path &mdash; negligible at this scale, and keeps the frontend independently buildable/deployable/rollback-able like the other 6 services.</p>
+</div>
+
+<section id="db">
+<h2>Database Design</h2>
+<p>No new tables. Both new endpoints read from existing tables (<code>Room</code>, <code>RoomType</code>, <code>Booking</code>, <code>RoomImage</code>) already owned by room-service and booking-service respectively. No schema migration needed for Stage 5.</p>
+
+<h3>Query added to booking-service (read-only)</h3>
+<pre><code>-- Conceptual shape of booking.service.ts#findAvailableRoom
+-- No SELECT ... FOR UPDATE here -- this is a resolver, not the transactional
+-- gate. createDraft existing row-locking remains the single source of
+-- truth that actually prevents double-booking.
+SELECT r.room_id, r.room_number, r.floor, r.room_type_id
+FROM Room r
+WHERE r.room_type_id = :roomTypeId
+  AND r.status = &#39;Available&#39;
+  AND NOT EXISTS (
+    SELECT 1 FROM Booking b
+    WHERE b.room_id = r.room_id
+      AND b.status IN (&#39;Draft&#39;, &#39;Reserved&#39;, &#39;CheckedIn&#39;)
+      -- mirrors createDraft stale-Draft self-heal: an expired-lock Draft
+      -- must not block a new resolution, even though this read-only path
+      -- does not itself flip it to Expired (that still only happens inside
+      -- createDraft transaction or the expiry cron)
+      AND NOT (b.status = &#39;Draft&#39; AND b.lock_expires_at &lt; NOW())
+      AND b.check_in  &lt; :checkOut
+      AND b.check_out &gt; :checkIn
+  )
+ORDER BY r.room_id ASC
+LIMIT 1;
+</code></pre>
+
+<p><strong>Indexes:</strong> No new indexes required &mdash; reuses the same <code>Booking(room_id, status, check_in, check_out)</code> access pattern <code>createDraft</code> existing <code>SELECT ... FOR UPDATE</code> already relies on. If <code>EXPLAIN</code> shows the correlated subquery scanning without an index during implementation, add a composite index on <code>Booking(room_id, status)</code> &mdash; an implementer/tester-time verification, not a new requirement introduced here.</p>
+</section>
+
+<section id="api">
+<h2>API Contracts</h2>
+
+<div class="card endpoint">
+<h4><span class="badge new">NEW</span><span class="badge public">Public</span> GET /rooms/:id/images <span style="font-weight:400; color:var(--sage-gray); font-size:0.85rem;">(room-service)</span></h4>
+<p><strong>Auth:</strong> None.</p>
+<p><strong>Path param:</strong> <code>id</code> &mdash; <code>ParseIntPipe</code>, must reference an existing <code>Room</code>.</p>
+<p><strong>Response DTO:</strong></p>
+<pre><code>// room-service/src/room-image/dto/room-image-response.dto.ts
+export class RoomImageResponseDto {
+  @ApiProperty() imageId: number;
+  @ApiProperty() roomId: number;
+  @ApiProperty() imagePath: string;       // e.g. "/uploads/rooms/&lt;uuid&gt;.jpg" -- served
+                                           // statically by Nginx existing
+                                           // location /uploads/rooms/ block, unchanged.
+  @ApiProperty({ nullable: true }) caption: string | null;
+  @ApiProperty() isPrimary: boolean;
+  @ApiProperty() displayOrder: number;
+  @ApiProperty() uploadedAt: Date;
+}
+</code></pre>
+<table>
+<tr><th>Status</th><th>Meaning</th></tr>
+<tr><td class="status-200">200 OK</td><td><code>RoomImageResponseDto[]</code>, ordered by <code>displayOrder ASC, isPrimary DESC</code>; <code>[]</code> if none.</td></tr>
+<tr><td class="status-404">404 Not Found</td><td>Room does not exist (reuses the same <code>NotFoundException</code> the existing upload endpoint throws).</td></tr>
+</table>
+</div>
+
+<div class="card endpoint">
+<h4><span class="badge new">NEW</span><span class="badge public">Public</span> GET /bookings/available-room <span style="font-weight:400; color:var(--sage-gray); font-size:0.85rem;">(booking-service)</span></h4>
+<p><strong>Auth:</strong> None (matches <code>POST /bookings/draft</code>, <code>POST /bookings/lookup</code>).</p>
+<p><strong>Request DTO (query params):</strong></p>
+<pre><code>// booking-service/src/booking/dto/find-available-room.dto.ts
+export class FindAvailableRoomDto {
+  @ApiProperty({ example: 1 })
+  @Type(() =&gt; Number) @IsInt()
+  roomTypeId: number;
+
+  @ApiProperty({ example: &#39;2026-07-10&#39; })
+  @IsDateString()
+  checkIn: string;
+
+  @ApiProperty({ example: &#39;2026-07-13&#39; })
+  @IsDateString()
+  checkOut: string;
+
+  @ApiProperty({ required: false, example: 2 })
+  @IsOptional() @Type(() =&gt; Number) @IsInt() @Min(1)
+  numGuests?: number;
+}
+</code></pre>
+<p><strong>Response DTO:</strong></p>
+<pre><code>export class AvailableRoomResponseDto {
+  @ApiProperty() roomId: number;
+  @ApiProperty() roomNumber: string;
+  @ApiProperty() roomTypeId: number;
+  @ApiProperty() typeName: string;
+  @ApiProperty() pricePerNight: number;
+  @ApiProperty() capacity: number;
+  @ApiProperty() nights: number;
+  @ApiProperty() totalPrice: number;       // pricePerNight * nights, precomputed
+                                            // so the confirmation screen can
+                                            // sanity-compare against
+                                            // CreateDraftResponseDto.totalPrice.
+}
+</code></pre>
+<table>
+<tr><th>Status</th><th>Meaning</th></tr>
+<tr><td class="status-200">200 OK</td><td><code>AvailableRoomResponseDto</code> for the lowest-<code>roomId</code> match.</td></tr>
+<tr><td class="status-400">400 Bad Request</td><td><code>checkOut &lt;= checkIn</code>, or <code>numGuests</code> exceeds the room type <code>capacity</code>.</td></tr>
+<tr><td class="status-404">404 Not Found</td><td>No <code>Available</code>-status room of that type is free for the range &mdash; message: &quot;No available room of this type for the given dates&quot;. Treated by the UI as fully booked, not an error state.</td></tr>
+</table>
+<p><strong>Nginx routing &mdash; no config change needed:</strong> <code>/api/bookings/available-room</code> does not match either exact-match location (<code>= /api/bookings/draft</code>, <code>= /api/bookings/lookup</code>), so it falls through to the prefix <code>location /api/bookings/</code> block &mdash; automatically under <strong>120r/min general_limit</strong>, not the 8r/min sensitive tier. This is the entire point of Decision 2 and the reason CES rejected client-side retrying against <code>POST /bookings/draft</code>.</p>
+</div>
+</section>

@@ -1,8 +1,10 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -16,10 +18,13 @@ import { SecurityLogger } from '../common/security-logger.service';
 import { REDIS_CLIENT } from './redis/redis.provider';
 import { Employee } from './entities/employee.entity';
 import { Role } from './entities/role.entity';
+import { EmployeeSummaryResponseDto } from './dto/employee-summary-response.dto';
+import { FindAllEmployeesDto } from './dto/find-all-employees.dto';
 import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { RegisterEmployeeDto } from './dto/register-employee.dto';
 import { TokenResponseDto } from './dto/token-response.dto';
+import { UpdateEmployeeDto } from './dto/update-employee.dto';
 
 const TEMP_TOKEN_PREFIX = 'temp_token:';
 const REFRESH_JTI_PREFIX = 'refresh_jti:';
@@ -118,6 +123,91 @@ export class AuthService {
       username: saved.username,
       fullName: saved.fullName,
       email: saved.email,
+    };
+  }
+
+  async findAllEmployees(filters: FindAllEmployeesDto): Promise<EmployeeSummaryResponseDto[]> {
+    const qb = this.employeeRepo
+      .createQueryBuilder('employee')
+      .leftJoinAndSelect('employee.role', 'role');
+
+    if (filters.roleId !== undefined) {
+      qb.andWhere('employee.roleId = :roleId', { roleId: filters.roleId });
+    }
+    if (filters.isActive !== undefined) {
+      qb.andWhere('employee.isActive = :isActive', { isActive: filters.isActive === 'true' });
+    }
+
+    const employees = await qb.getMany();
+    return employees.map((employee) => this.toEmployeeSummary(employee));
+  }
+
+  async findEmployeeById(employeeId: number): Promise<EmployeeSummaryResponseDto> {
+    const employee = await this.employeeRepo.findOne({
+      where: { employeeId },
+      relations: ['role'],
+    });
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+    return this.toEmployeeSummary(employee);
+  }
+
+  async updateEmployee(
+    employeeId: number,
+    dto: UpdateEmployeeDto,
+    actingEmployeeId: number,
+  ): Promise<EmployeeSummaryResponseDto> {
+    // Self-lockout guard: an admin can never deactivate or demote their own account.
+    if (employeeId === actingEmployeeId) {
+      throw new ForbiddenException('Admins cannot modify their own employee record');
+    }
+
+    const employee = await this.employeeRepo.findOne({
+      where: { employeeId },
+      relations: ['role'],
+    });
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    if (dto.roleId !== undefined) {
+      const role = await this.roleRepo.findOne({ where: { roleId: dto.roleId } });
+      if (!role) {
+        throw new BadRequestException('roleId does not reference an existing Role');
+      }
+      employee.roleId = dto.roleId;
+      employee.role = role;
+    }
+    if (dto.isActive !== undefined) {
+      employee.isActive = dto.isActive;
+    }
+
+    const saved = await this.employeeRepo.save(employee);
+
+    this.securityLogger.log('admin_action_update_employee', {
+      actingEmployeeId,
+      targetEmployeeId: employeeId,
+      isActive: dto.isActive,
+      roleId: dto.roleId,
+    });
+
+    return this.toEmployeeSummary(saved);
+  }
+
+  private toEmployeeSummary(employee: Employee): EmployeeSummaryResponseDto {
+    return {
+      employeeId: employee.employeeId,
+      username: employee.username,
+      fullName: employee.fullName,
+      email: employee.email,
+      phone: employee.phone,
+      roleId: employee.roleId,
+      roleName: employee.role?.roleName,
+      mfaEnabled: employee.mfaEnabled,
+      isActive: employee.isActive,
+      lastLoginAt: employee.lastLoginAt,
+      createdAt: employee.createdAt,
     };
   }
 

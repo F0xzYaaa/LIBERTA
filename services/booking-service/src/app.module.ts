@@ -11,6 +11,7 @@ import { Guest } from './booking/entities/guest.entity';
 import { Room } from './booking/entities/room.entity';
 import { RoomType } from './booking/entities/room-type.entity';
 import { configSchema } from './config/config.schema';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { configSchema } from './config/config.schema';
       }),
     }),
     BookingModule,
+    HealthModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

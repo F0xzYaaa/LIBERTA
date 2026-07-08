@@ -78,7 +78,8 @@ docs/
 
 1. Copy `.env.example` to `.env` and fill in real secrets.
 2. `docker compose up` — starts MySQL, Redis, and all six services (schema + seed auto-load on first MySQL start).
-3. Frontend dev server: `cd frontend && npm install && npm run dev`.
+3. `scripts/apply-grants.sh` — creates the read-only `admin_ro` MySQL user admin-service needs (not part of the schema/seed auto-load; run once after MySQL is up, and again if `ADMIN_DB_PASSWORD` changes in `.env`).
+4. Frontend dev server: `cd frontend && npm install && npm run dev`.
 
 Services are currently stubbed (Stage 1). Each service's NestJS implementation lands in later stages.
 
