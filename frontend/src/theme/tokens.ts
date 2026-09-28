@@ -1,4 +1,4 @@
-// LIBERTA หัวหิน brand tokens — single source of truth for colors, fonts and
+// LIBERTA HUAHIN brand tokens — single source of truth for colors, fonts and
 // corner radii. Every other place in the codebase (Tailwind config, UI
 // components) must import from here rather than hardcoding hex values again.
 

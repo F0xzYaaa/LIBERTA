@@ -1,4 +1,4 @@
-// Mirrors services/guest-service/src/guest/dto/*.ts
+// Mirrors backend/guest-service/src/guest/dto/*.ts
 
 export interface RegisterGuestRequest {
   firstName: string;

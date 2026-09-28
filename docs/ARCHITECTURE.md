@@ -23,3 +23,17 @@ Six independent NestJS microservices behind Nginx, communicating over REST on an
 - Data flow diagrams for the booking draft-lock flow (Redis + MySQL `SELECT ... FOR UPDATE`)
 - Auth flow sequence diagram (password -> temp_token -> TOTP -> JWT)
 - Inter-service communication patterns (which services call which, over what)
+
+## Stage 6 production hardening — accepted final state (2026-07-11)
+
+**Logging:** `SecurityLogger`'s structured JSON stdout-only logging (no rotation or
+persistence layer) is the accepted final state for this project's scale, not a
+placeholder awaiting a later hardening pass. CES made this call on 2026-07-11:
+Docker's own log driver already captures stdout, and real log persistence/rotation
+is production-scale infra this academic mini-project doesn't need.
+
+**Frontend bundle size:** the frontend's single-chunk ~757KB JS bundle-size build
+warning is a known, deferred item — not fixed in Stage 6 per CES's explicit
+2026-07-11 decision, since it's pure performance polish with no correctness/security
+impact. If a future session wants to pick this up, code-splitting (route-based lazy
+loading via `React.lazy`, or Vite `manualChunks`) is the known fix.

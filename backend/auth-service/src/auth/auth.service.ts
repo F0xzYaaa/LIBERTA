@@ -2,6 +2,8 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   NotFoundException,
@@ -28,6 +30,7 @@ import { UpdateEmployeeDto } from './dto/update-employee.dto';
 
 const TEMP_TOKEN_PREFIX = 'temp_token:';
 const REFRESH_JTI_PREFIX = 'refresh_jti:';
+const LOGIN_ATTEMPT_PREFIX = 'login_attempts:';
 const BCRYPT_COST = 10;
 
 @Injectable()
@@ -42,6 +45,8 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto, ip?: string): Promise<LoginResponseDto> {
+    await this.enforceLoginAttemptLimit(dto.username);
+
     const employee = await this.employeeRepo.findOne({ where: { username: dto.username } });
 
     // Constant-shape response: run bcrypt.compare even when the account is missing,
@@ -51,6 +56,7 @@ export class AuthService {
     const passwordMatches = await bcrypt.compare(dto.password, hashToCompare);
 
     if (!employee || !passwordMatches) {
+      await this.recordFailedLoginAttempt(dto.username);
       this.securityLogger.warn('login_failure', {
         username: dto.username,
         ip,
@@ -58,6 +64,12 @@ export class AuthService {
       });
       throw new UnauthorizedException('Invalid username or password');
     }
+
+    // Correct credentials presented — reset the counter regardless of active state below,
+    // since the failed-attempt counter exists to stop password guessing, not to punish a
+    // legitimate credential holder whose account happens to be deactivated.
+    await this.resetLoginAttempts(dto.username);
+
     if (!employee.isActive) {
       this.securityLogger.warn('login_failure', {
         username: dto.username,
@@ -302,6 +314,42 @@ export class AuthService {
       refreshToken,
       expiresIn: this.parseExpiresInSeconds(accessExpires),
     };
+  }
+
+  /**
+   * Employee.username is looked up under a case-insensitive, pad-space MySQL
+   * collation (utf8mb4_unicode_ci — see database/schema.sql), so "admin",
+   * "ADMIN", and "admin  " all resolve to the same account. The Redis lockout
+   * key must be normalized to match, otherwise an attacker can multiply their
+   * guess budget past LOGIN_MAX_ATTEMPTS by varying case/whitespace while
+   * authenticating against the same underlying account.
+   */
+  private normalizeLoginKey(username: string): string {
+    return `${LOGIN_ATTEMPT_PREFIX}${username.trim().toLowerCase()}`;
+  }
+
+  /** Per-username brute-force guard on POST /auth/login, mirroring mfa-service's attempt counter. */
+  private async enforceLoginAttemptLimit(username: string): Promise<void> {
+    const maxAttempts = this.config.get<number>('LOGIN_MAX_ATTEMPTS') as number;
+    const attempts = Number((await this.redis.get(this.normalizeLoginKey(username))) ?? 0);
+    if (attempts >= maxAttempts) {
+      // Generic message — never reveals remaining attempts or whether the username exists.
+      throw new HttpException(
+        'Too many failed login attempts — please try again later',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
+  private async recordFailedLoginAttempt(username: string): Promise<void> {
+    const windowSeconds = this.config.get<number>('LOGIN_LOCKOUT_WINDOW_SECONDS') as number;
+    const key = this.normalizeLoginKey(username);
+    await this.redis.incr(key);
+    await this.redis.expire(key, windowSeconds);
+  }
+
+  private async resetLoginAttempts(username: string): Promise<void> {
+    await this.redis.del(this.normalizeLoginKey(username));
   }
 
   private parseExpiresInSeconds(expires: string): number {

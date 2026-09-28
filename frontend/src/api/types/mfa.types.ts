@@ -1,4 +1,4 @@
-// Mirrors services/mfa-service/src/mfa/dto/*.ts
+// Mirrors backend/mfa-service/src/mfa/dto/*.ts
 import type { TokenResponse } from './auth.types';
 
 export interface GenerateMfaRequest {

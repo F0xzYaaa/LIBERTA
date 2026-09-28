@@ -1,7 +1,7 @@
 # LIBERTA หัวหิน — frontend
 # Multi-stage build with two independently usable targets:
 #   - `dev`        : runs the Vite dev server (used by docker-compose.yml)
-#   - `production` : Nginx serving the static build output (used by docker-compose.prod.yml)
+#   - `production` : Nginx serving the static build output
 
 # ---- base: shared dependency install layer ----
 FROM node:20-alpine AS base

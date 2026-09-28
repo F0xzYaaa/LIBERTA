@@ -1,4 +1,4 @@
-// Mirrors services/booking-service/src/booking/dto/*.ts and entities/booking.entity.ts
+// Mirrors backend/booking-service/src/booking/dto/*.ts and entities/booking.entity.ts
 
 export enum BookingStatus {
   Draft = 'Draft',

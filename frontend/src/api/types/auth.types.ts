@@ -1,4 +1,4 @@
-// Mirrors services/auth-service/src/auth/dto/*.ts
+// Mirrors backend/auth-service/src/auth/dto/*.ts
 
 export interface LoginRequest {
   username: string;

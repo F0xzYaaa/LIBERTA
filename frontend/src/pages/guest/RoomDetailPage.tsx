@@ -56,9 +56,12 @@ export function RoomDetailPage(): JSX.Element {
             {roomType.typeName}
           </h1>
           <p className="mt-2 font-sans text-lg text-primary">
-            {formatCurrency(roomType.pricePerNight)} <span className="text-sage-gray">/ night</span>
+            {formatCurrency(roomType.pricePerNight)}{' '}
+            <span className="text-primary-dark/70">/ night</span>
           </p>
-          <p className="mt-1 font-sans text-sm text-sage-gray">Up to {roomType.capacity} guests</p>
+          <p className="mt-1 font-sans text-sm text-primary-dark/70">
+            Up to {roomType.capacity} guests
+          </p>
 
           {roomType.description && (
             <p className="mt-4 font-sans text-primary-dark/90">{roomType.description}</p>

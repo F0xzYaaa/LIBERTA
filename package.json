@@ -1,0 +1,15 @@
+{
+  "name": "liberta-hotel-management-system",
+  "private": true,
+  "description": "Root workspace orchestrator for LIBERTA's 6 NestJS backend services — alpha-test tooling only. Docker (docker-compose.yml) remains the source of truth for packaging/deployment.",
+  "workspaces": [
+    "backend/*"
+  ],
+  "scripts": {
+    "dev": "dotenv -e .env -- concurrently -n auth,mfa,guest,room,booking,admin -c blue,green,yellow,magenta,cyan,white \"npm run start:dev -w @liberta/auth-service\" \"npm run start:dev -w @liberta/mfa-service\" \"npm run start:dev -w @liberta/guest-service\" \"npm run start:dev -w @liberta/room-service\" \"npm run start:dev -w @liberta/booking-service\" \"npm run start:dev -w @liberta/admin-service\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "dotenv-cli": "^8.0.0"
+  }
+}

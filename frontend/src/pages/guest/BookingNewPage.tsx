@@ -207,7 +207,7 @@ export function BookingNewPage(): JSX.Element {
         />
       )}
       {roomTypeQuery.data && (
-        <p className="mt-2 font-sans text-sage-gray">
+        <p className="mt-2 font-sans text-primary-dark/70">
           {roomTypeQuery.data.typeName} &middot; {formatCurrency(roomTypeQuery.data.pricePerNight)}{' '}
           / night &middot; up to {roomTypeQuery.data.capacity} guests
         </p>

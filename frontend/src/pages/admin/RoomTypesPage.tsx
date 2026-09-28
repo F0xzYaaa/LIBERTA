@@ -152,7 +152,7 @@ export function RoomTypesPage(): JSX.Element {
         />
       )}
       {roomTypesQuery.data && roomTypesQuery.data.length === 0 && (
-        <p className="font-sans text-sage-gray">No room types yet.</p>
+        <p className="font-sans text-primary-dark/70">No room types yet.</p>
       )}
       {roomTypesQuery.data && roomTypesQuery.data.length > 0 && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

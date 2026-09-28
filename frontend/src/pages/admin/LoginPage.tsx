@@ -36,7 +36,7 @@ export function LoginPage(): JSX.Element {
     <div className="flex min-h-screen items-center justify-center bg-primary-dark px-6">
       <Card className="w-full max-w-md">
         <div className="flex flex-col items-center gap-3">
-          <img src={logo} alt="LIBERTA หัวหิน" className="h-14 w-14 rounded-full object-cover" />
+          <img src={logo} alt="LIBERTA HUAHIN" className="h-14 w-14 rounded-full object-cover" />
           <h1 className="font-serif text-2xl font-semibold text-primary-dark">Staff Login</h1>
           <p className="text-center font-sans text-sm text-sage-gray">
             Sign in with your employee account to access the LIBERTA admin console.

@@ -41,6 +41,10 @@ export class AuthController {
   @ApiResponse({ status: 200, type: LoginResponseDto })
   @ApiResponse({ status: 401, description: 'Invalid username or password' })
   @ApiResponse({ status: 403, description: 'Employee account is deactivated' })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many failed login attempts for this username — locked out temporarily',
+  })
   async login(@Body() dto: LoginDto, @Req() req: Request): Promise<LoginResponseDto> {
     return this.authService.login(dto, req.ip);
   }

@@ -2,7 +2,6 @@
 .env
 .env.*
 !.env.example
-!.env.prod.example
 
 # Node
 node_modules/
@@ -25,10 +24,12 @@ npm-debug.log*
 Thumbs.db
 
 # Uploads (runtime data, not source)
-services/room-service/uploads/
-services/booking-service/uploads/
+backend/room-service/uploads/
+backend/booking-service/uploads/
 
-# TLS certs (self-signed, generated per-deploy)
+# TLS certs — generated at runtime by the `ca` container into the tls_certs
+# Docker volume, not into a repo folder anymore. Rule kept in case anything
+# still writes here locally.
 nginx/certs/*.key
 nginx/certs/*.crt
 nginx/certs/*.pem

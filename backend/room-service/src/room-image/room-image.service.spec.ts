@@ -1,7 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
+import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 import * as fsPromises from 'fs/promises';
 import { SecurityLogger } from '../common/security-logger.service';
 import { Room } from '../room/entities/room.entity';
@@ -11,12 +11,15 @@ import { RoomImageService } from './room-image.service';
 jest.mock('fs/promises', () => ({
   mkdir: jest.fn().mockResolvedValue(undefined),
   writeFile: jest.fn().mockResolvedValue(undefined),
+  unlink: jest.fn().mockResolvedValue(undefined),
 }));
 
 describe('RoomImageService', () => {
   let service: RoomImageService;
   let imageRepo: { create: jest.Mock; save: jest.Mock; update: jest.Mock; find: jest.Mock };
   let roomRepo: { findOne: jest.Mock };
+  let dataSource: { transaction: jest.Mock };
+  let manager: { create: jest.Mock; save: jest.Mock; update: jest.Mock; findOne: jest.Mock };
   let config: { get: jest.Mock };
 
   const jpegBuffer = Buffer.from([0xff, 0xd8, 0xff, 0x00, 0x01, 0x02]);
@@ -31,6 +34,17 @@ describe('RoomImageService', () => {
       find: jest.fn(),
     };
     roomRepo = { findOne: jest.fn() };
+    manager = {
+      create: jest.fn(),
+      save: jest.fn(),
+      update: jest.fn().mockResolvedValue(undefined),
+      findOne: jest.fn().mockResolvedValue({ roomId: 1 }),
+    };
+    dataSource = {
+      // Mirrors booking-service's spec pattern: transaction() just invokes the
+      // callback with the shared manager mock, synchronously "committing" it.
+      transaction: jest.fn(async (cb: (m: typeof manager) => unknown) => cb(manager)),
+    };
     config = {
       get: jest.fn((key: string) => {
         const values: Record<string, string | number> = {
@@ -46,6 +60,7 @@ describe('RoomImageService', () => {
         RoomImageService,
         { provide: getRepositoryToken(RoomImage), useValue: imageRepo },
         { provide: getRepositoryToken(Room), useValue: roomRepo },
+        { provide: getDataSourceToken(), useValue: dataSource },
         { provide: ConfigService, useValue: config },
         SecurityLogger,
       ],
@@ -80,8 +95,8 @@ describe('RoomImageService', () => {
 
   it('accepts a real JPEG, writes it with a randomized filename, and records the sniffed MIME type', async () => {
     roomRepo.findOne.mockResolvedValue({ roomId: 1 });
-    imageRepo.create.mockImplementation((entity) => entity);
-    imageRepo.save.mockImplementation((entity) => Promise.resolve({ ...entity, imageId: 1 }));
+    manager.create.mockImplementation((_entity, data) => data);
+    manager.save.mockImplementation((entity) => Promise.resolve({ ...entity, imageId: 1 }));
 
     const result = await service.upload(
       1,
@@ -99,33 +114,72 @@ describe('RoomImageService', () => {
     );
   });
 
-  it('clears any existing primary image for the room when uploading a new primary', async () => {
+  it('clears any existing primary image for the room when uploading a new primary, atomically in one transaction', async () => {
     roomRepo.findOne.mockResolvedValue({ roomId: 1 });
-    imageRepo.create.mockImplementation((entity) => entity);
-    imageRepo.save.mockImplementation((entity) => Promise.resolve({ ...entity, imageId: 2 }));
+    manager.create.mockImplementation((_entity, data) => data);
+    manager.save.mockImplementation((entity) => Promise.resolve({ ...entity, imageId: 2 }));
 
     await service.upload(1, { buffer: jpegBuffer, size: jpegBuffer.length }, { isPrimary: true });
 
-    expect(imageRepo.update).toHaveBeenCalledWith(
+    expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+    expect(manager.update).toHaveBeenCalledWith(
+      RoomImage,
       { roomId: 1, isPrimary: true },
       { isPrimary: false },
     );
+    // The clear-primary update and the new-image save must happen inside the same
+    // transaction callback, not as two separate repo calls outside it.
+    expect(imageRepo.update).not.toHaveBeenCalled();
+    expect(imageRepo.save).not.toHaveBeenCalled();
   });
 
   it('does not touch other images when uploading a non-primary image', async () => {
     roomRepo.findOne.mockResolvedValue({ roomId: 1 });
-    imageRepo.create.mockImplementation((entity) => entity);
-    imageRepo.save.mockImplementation((entity) => Promise.resolve({ ...entity, imageId: 3 }));
+    manager.create.mockImplementation((_entity, data) => data);
+    manager.save.mockImplementation((entity) => Promise.resolve({ ...entity, imageId: 3 }));
 
     await service.upload(1, { buffer: jpegBuffer, size: jpegBuffer.length }, { isPrimary: false });
 
-    expect(imageRepo.update).not.toHaveBeenCalled();
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('retries once on an InnoDB deadlock (errno 1213) and succeeds on the second attempt', async () => {
+    // Regression test for a real bug the Stage 6 tester pass found under genuine
+    // concurrent load: 2 of 6 simultaneous uploads to the same room deadlocked with
+    // no retry, surfacing as an unhandled 500.
+    roomRepo.findOne.mockResolvedValue({ roomId: 1 });
+    manager.create.mockImplementation((_entity, data) => data);
+    const deadlock = Object.assign(new Error('Deadlock found'), { errno: 1213 });
+    manager.save.mockRejectedValueOnce(deadlock).mockImplementationOnce((entity) =>
+      Promise.resolve({ ...entity, imageId: 4 }),
+    );
+
+    const result = await service.upload(1, { buffer: jpegBuffer, size: jpegBuffer.length }, {});
+
+    expect(result.imageId).toBe(4);
+    expect(dataSource.transaction).toHaveBeenCalledTimes(2);
+    expect(fsPromises.unlink).not.toHaveBeenCalled();
+  });
+
+  it('removes the orphaned file from disk when the transaction fails even after retries', async () => {
+    roomRepo.findOne.mockResolvedValue({ roomId: 1 });
+    manager.create.mockImplementation((_entity, data) => data);
+    const deadlock = Object.assign(new Error('Deadlock found'), { errno: 1213 });
+    manager.save.mockRejectedValue(deadlock);
+
+    await expect(
+      service.upload(1, { buffer: jpegBuffer, size: jpegBuffer.length }, {}),
+    ).rejects.toThrow('Deadlock found');
+
+    // Initial attempt + 2 retries = 3 total.
+    expect(dataSource.transaction).toHaveBeenCalledTimes(3);
+    expect(fsPromises.unlink).toHaveBeenCalledWith(expect.stringContaining('uploads'));
   });
 
   it('accepts a real PNG', async () => {
     roomRepo.findOne.mockResolvedValue({ roomId: 1 });
-    imageRepo.create.mockImplementation((entity) => entity);
-    imageRepo.save.mockImplementation((entity) => Promise.resolve({ ...entity, imageId: 2 }));
+    manager.create.mockImplementation((_entity, data) => data);
+    manager.save.mockImplementation((entity) => Promise.resolve({ ...entity, imageId: 2 }));
 
     const result = await service.upload(1, { buffer: pngBuffer, size: pngBuffer.length }, {});
 

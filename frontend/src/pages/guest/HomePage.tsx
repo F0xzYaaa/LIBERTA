@@ -34,10 +34,10 @@ export function HomePage(): JSX.Element {
         <div className="mx-auto max-w-2xl px-6 py-24">
           <img
             src={logo}
-            alt="LIBERTA หัวหิน"
+            alt="LIBERTA HUAHIN"
             className="mx-auto h-20 w-20 rounded-full object-cover"
           />
-          <h1 className="mt-6 font-serif text-4xl font-semibold sm:text-5xl">LIBERTA หัวหิน</h1>
+          <h1 className="mt-6 font-serif text-4xl font-semibold sm:text-5xl">LIBERTA HUAHIN</h1>
           <p className="mt-4 font-sans text-lg text-cream/90">
             A quiet boutique retreat above the Gulf of Thailand &mdash; sea breeze, garden shade,
             and unhurried Hua Hin mornings.
@@ -49,12 +49,12 @@ export function HomePage(): JSX.Element {
       </section>
 
       <section className="mx-auto max-w-6xl px-6 py-16">
-        <p className="font-sans text-sm uppercase tracking-wide text-sage-teal">Welcome</p>
+        <p className="font-sans text-sm uppercase tracking-wide text-primary">Welcome</p>
         <h2 className="mt-1 font-serif text-2xl font-semibold text-primary-dark sm:text-3xl">
           A boutique hotel in the heart of Hua Hin
         </h2>
-        <p className="mt-4 max-w-3xl font-sans text-sage-gray">
-          LIBERTA หัวหิน is a small, family-run hotel a short stroll from Hua Hin&apos;s beach and
+        <p className="mt-4 max-w-3xl font-sans text-primary-dark/70">
+          LIBERTA HUAHIN is a small, family-run hotel a short stroll from Hua Hin&apos;s beach and
           night market. Every room is designed around a view &mdash; the sea, the garden, or the
           hills behind town &mdash; so your stay feels less like a hotel and more like a quiet
           second home by the coast.
@@ -72,7 +72,9 @@ export function HomePage(): JSX.Element {
           />
         )}
         {!isLoading && !isError && featured.length === 0 && (
-          <p className="mt-6 font-sans text-sage-gray">Room types will be available here soon.</p>
+          <p className="mt-6 font-sans text-primary-dark/70">
+            Room types will be available here soon.
+          </p>
         )}
         {featured.length > 0 && (
           <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">

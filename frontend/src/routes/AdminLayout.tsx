@@ -35,7 +35,7 @@ export function AdminLayout(): JSX.Element {
       <aside className="flex w-64 flex-col justify-between border-r border-sage-gray/15 bg-primary-dark text-cream">
         <div>
           <div className="flex items-center gap-3 px-6 py-6">
-            <img src={logo} alt="LIBERTA หัวหิน" className="h-9 w-9 rounded-full object-cover" />
+            <img src={logo} alt="LIBERTA HUAHIN" className="h-9 w-9 rounded-full object-cover" />
             <span className="font-serif text-lg font-semibold">LIBERTA Admin</span>
           </div>
           <nav className="mt-4 flex flex-col gap-1 px-3 font-sans text-sm">

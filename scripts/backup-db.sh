@@ -5,13 +5,15 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-if [ ! -f .env.prod ]; then
-    echo "Missing .env.prod — cannot read MYSQL_ROOT_PASSWORD." >&2
+if [ ! -f .env ]; then
+    echo "Missing .env — cannot read MYSQL_ROOT_PASSWORD." >&2
     exit 1
 fi
 
+# Explicit ./ prefix — a bare filename is subject to bash's PATH-search `source`
+# behavior, which can silently pick up an unrelated file of the same name.
 # shellcheck disable=SC1091
-source .env.prod
+source "./.env"
 
 BACKUP_DIR="${BACKUP_DIR:-/opt/liberta/backups}"
 mkdir -p "$BACKUP_DIR"
@@ -19,7 +21,7 @@ mkdir -p "$BACKUP_DIR"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 OUT_FILE="$BACKUP_DIR/liberta_hotel_${TIMESTAMP}.sql.gz"
 
-docker compose -f docker-compose.prod.yml exec -T mysql \
+docker compose -f docker-compose.yml exec -T mysql \
     mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" "${MYSQL_DATABASE:-liberta_hotel}" \
     | gzip > "$OUT_FILE"
 

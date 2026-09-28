@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -30,7 +31,13 @@ describe('AuthService', () => {
     createQueryBuilder: jest.Mock;
   };
   let roleRepo: { findOne: jest.Mock };
-  let redis: { set: jest.Mock; get: jest.Mock; del: jest.Mock };
+  let redis: {
+    set: jest.Mock;
+    get: jest.Mock;
+    del: jest.Mock;
+    incr: jest.Mock;
+    expire: jest.Mock;
+  };
   let jwt: { sign: jest.Mock; verify: jest.Mock };
   let config: { get: jest.Mock };
 
@@ -58,17 +65,19 @@ describe('AuthService', () => {
       createQueryBuilder: jest.fn(),
     };
     roleRepo = { findOne: jest.fn() };
-    redis = { set: jest.fn(), get: jest.fn(), del: jest.fn() };
+    redis = { set: jest.fn(), get: jest.fn(), del: jest.fn(), incr: jest.fn(), expire: jest.fn() };
     jwt = { sign: jest.fn(), verify: jest.fn() };
     config = {
       get: jest.fn((key: string) => {
         const values: Record<string, string | number> = {
           MFA_TEMP_TOKEN_TTL_SECONDS: 300,
           JWT_ACCESS_EXPIRES: '24h',
-          JWT_REFRESH_EXPIRES: '7d',
-          JWT_REFRESH_TTL_SECONDS: 604800,
+          JWT_REFRESH_EXPIRES: '24h',
+          JWT_REFRESH_TTL_SECONDS: 86400,
           JWT_ACCESS_SECRET: 'access-secret-at-least-32-characters-long',
           JWT_REFRESH_SECRET: 'refresh-secret-at-least-32-characters-long',
+          LOGIN_MAX_ATTEMPTS: 5,
+          LOGIN_LOCKOUT_WINDOW_SECONDS: 900,
         };
         return values[key];
       }),
@@ -146,6 +155,95 @@ describe('AuthService', () => {
 
       expect(result.mfaRequired).toBe(false);
       expect(result.mfaEnrollmentRequired).toBe(true);
+    });
+  });
+
+  describe('login — per-account lockout (brute-force guard)', () => {
+    it('records a failed attempt on each bad password, keyed by username', async () => {
+      redis.get.mockResolvedValue(undefined);
+      employeeRepo.findOne.mockResolvedValue(activeEmployee);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+      await expect(service.login({ username: 'staff01', password: 'wrong-pass' })).rejects.toThrow(
+        UnauthorizedException,
+      );
+
+      expect(redis.incr).toHaveBeenCalledWith('login_attempts:staff01');
+      expect(redis.expire).toHaveBeenCalledWith('login_attempts:staff01', 900);
+    });
+
+    it('locks out on the 5th failed attempt with a 429, without revealing remaining attempts', async () => {
+      redis.get.mockResolvedValue('5');
+      employeeRepo.findOne.mockResolvedValue(activeEmployee);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+      await expect(
+        service.login({ username: 'staff01', password: 'wrong-pass' }),
+      ).rejects.toMatchObject({
+        status: 429,
+        message: 'Too many failed login attempts — please try again later',
+      });
+
+      // The lockout is enforced before any DB lookup or password check runs.
+      expect(employeeRepo.findOne).not.toHaveBeenCalled();
+      expect(redis.incr).not.toHaveBeenCalled();
+    });
+
+    it('returns the same lockout error even when the correct credentials are presented', async () => {
+      redis.get.mockResolvedValue('5');
+      employeeRepo.findOne.mockResolvedValue(activeEmployee);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+      await expect(service.login({ username: 'staff01', password: 'password123' })).rejects.toThrow(
+        HttpException,
+      );
+      expect(employeeRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('allows retry once the lockout window (TTL) has expired, i.e. the counter key is gone', async () => {
+      redis.get.mockResolvedValue(null);
+      employeeRepo.findOne.mockResolvedValue(activeEmployee);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      redis.set.mockResolvedValue('OK');
+
+      const result = await service.login({ username: 'staff01', password: 'password123' });
+
+      expect(result.tempToken).toEqual(expect.any(String));
+    });
+
+    it('resets the failed-attempt counter on a successful login', async () => {
+      redis.get.mockResolvedValue('3');
+      employeeRepo.findOne.mockResolvedValue(activeEmployee);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      redis.set.mockResolvedValue('OK');
+
+      await service.login({ username: 'staff01', password: 'password123' });
+
+      expect(redis.del).toHaveBeenCalledWith('login_attempts:staff01');
+    });
+
+    it('keys the lockout counter on a normalized username, so case/whitespace variants share one bucket', async () => {
+      // Employee.username is looked up under a case-insensitive, pad-space MySQL
+      // collation (utf8mb4_unicode_ci) — "STAFF01" and "staff01  " both resolve to
+      // the same account. Regression test for a real bypass found by the Stage 6
+      // security-auditor pass: without normalization, each variant got its own
+      // Redis key, letting an attacker multiply their guess budget past
+      // LOGIN_MAX_ATTEMPTS by cycling case/whitespace against one real account.
+      redis.get.mockResolvedValue(undefined);
+      employeeRepo.findOne.mockResolvedValue(activeEmployee);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+      await expect(
+        service.login({ username: 'STAFF01', password: 'wrong-pass' }),
+      ).rejects.toThrow(UnauthorizedException);
+      await expect(
+        service.login({ username: '  staff01  ', password: 'wrong-pass' }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(redis.incr).toHaveBeenCalledWith('login_attempts:staff01');
+      expect(redis.incr).not.toHaveBeenCalledWith('login_attempts:STAFF01');
+      expect(redis.incr).not.toHaveBeenCalledWith('login_attempts:  staff01  ');
+      expect(redis.incr).toHaveBeenCalledTimes(2);
     });
   });
 

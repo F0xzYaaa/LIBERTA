@@ -10,7 +10,7 @@ export function AboutPage(): JSX.Element {
         }}
       >
         <div className="mx-auto max-w-4xl px-6 pb-12">
-          <h1 className="font-serif text-4xl font-semibold">About LIBERTA หัวหิน</h1>
+          <h1 className="font-serif text-4xl font-semibold">About LIBERTA HUAHIN</h1>
           <p className="mt-2 font-sans text-cream/90">
             A quiet boutique hotel by the Gulf of Thailand
           </p>
@@ -21,7 +21,7 @@ export function AboutPage(): JSX.Element {
         <section>
           <h2 className="font-serif text-2xl font-semibold text-primary-dark">Our Story</h2>
           <p className="mt-3 font-sans leading-relaxed text-primary-dark/90">
-            LIBERTA หัวหิน began as a small family guesthouse a few streets back from Hua Hin&apos;s
+            LIBERTA HUAHIN began as a small family guesthouse a few streets back from Hua Hin&apos;s
             beach road, and grew, room by room, into the boutique hotel it is today. We kept what
             mattered from those early years &mdash; knowing our guests by name, a garden that&apos;s
             actually used, and mornings unhurried enough to matter &mdash; and added the comforts of

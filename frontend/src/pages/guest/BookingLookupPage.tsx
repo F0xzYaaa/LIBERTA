@@ -30,7 +30,7 @@ export function BookingLookupPage(): JSX.Element {
   return (
     <div className="mx-auto max-w-xl px-6 py-16">
       <h1 className="font-serif text-3xl font-semibold text-primary-dark">Find My Booking</h1>
-      <p className="mt-2 font-sans text-sage-gray">
+      <p className="mt-2 font-sans text-primary-dark/70">
         Enter your booking reference along with the phone number or email you registered with.
       </p>
 

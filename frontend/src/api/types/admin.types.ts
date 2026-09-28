@@ -1,4 +1,4 @@
-// Mirrors services/admin-service/src/dashboard/dto/*.ts
+// Mirrors backend/admin-service/src/dashboard/dto/*.ts
 
 export interface DashboardSummaryResponse {
   arrivalsToday: number;

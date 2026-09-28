@@ -12,8 +12,12 @@ export const configSchema = Joi.object({
   JWT_ACCESS_SECRET: Joi.string().min(32).required(),
   JWT_REFRESH_SECRET: Joi.string().min(32).required(),
   JWT_ACCESS_EXPIRES: Joi.string().default('24h'),
-  JWT_REFRESH_EXPIRES: Joi.string().default('7d'),
-  JWT_REFRESH_TTL_SECONDS: Joi.number().default(604800),
+  // Staff/admin refresh token lifetime. Kept short (24h, was 7d) per 2026-07-11 CES decision —
+  // the Redis-side refresh_jti TTL below is what actually enforces this, so it must match.
+  JWT_REFRESH_EXPIRES: Joi.string().default('24h'),
+  JWT_REFRESH_TTL_SECONDS: Joi.number().default(86400),
   MFA_TEMP_TOKEN_TTL_SECONDS: Joi.number().default(300),
+  LOGIN_MAX_ATTEMPTS: Joi.number().default(5),
+  LOGIN_LOCKOUT_WINDOW_SECONDS: Joi.number().default(900),
   INTERNAL_SERVICE_KEY: Joi.string().min(32).required(),
 });

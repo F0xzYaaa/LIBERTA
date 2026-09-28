@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { mkdir, writeFile } from 'fs/promises';
+import { mkdir, unlink, writeFile } from 'fs/promises';
 import * as path from 'path';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { SecurityLogger } from '../common/security-logger.service';
 import { Room } from '../room/entities/room.entity';
 import { RoomImageResponseDto } from './dto/room-image-response.dto';
@@ -40,6 +40,7 @@ export class RoomImageService {
   constructor(
     @InjectRepository(RoomImage) private readonly imageRepo: Repository<RoomImage>,
     @InjectRepository(Room) private readonly roomRepo: Repository<Room>,
+    @InjectDataSource() private readonly dataSource: DataSource,
     private readonly config: ConfigService,
     private readonly securityLogger: SecurityLogger,
   ) {}
@@ -74,24 +75,31 @@ export class RoomImageService {
     // for the on-disk path, closing off path traversal entirely.
     const filename = `${randomUUID()}.${spec.ext}`;
     const fullPath = path.join(uploadDir, filename);
-    await writeFile(fullPath, file.buffer);
 
     const isPrimary = dto.isPrimary ?? false;
-    if (isPrimary) {
-      // Only one image per room may be primary — clear any existing one first,
-      // otherwise two images can both end up with isPrimary=true.
-      await this.imageRepo.update({ roomId, isPrimary: true }, { isPrimary: false });
-    }
+    const maxRetries = 2;
+    let saved: RoomImage;
+    try {
+      // File is written only once, ahead of the retry loop — a deadlock retry
+      // re-runs the DB transaction, not the disk write.
+      await writeFile(fullPath, file.buffer);
 
-    const image = this.imageRepo.create({
-      roomId,
-      imagePath: `/uploads/rooms/${filename}`,
-      caption: dto.caption ?? null,
-      isPrimary,
-      fileSize: file.size,
-      mimeType,
-    });
-    const saved = await this.imageRepo.save(image);
+      saved = await this.runUploadTransactionWithRetry(
+        roomId,
+        filename,
+        isPrimary,
+        dto,
+        file,
+        mimeType,
+        maxRetries,
+      );
+    } catch (err) {
+      // The transaction never committed (either it threw after exhausting retries, or
+      // the disk write itself failed) — remove the orphaned file rather than leaving it
+      // on disk with no DB row ever referencing it.
+      await unlink(fullPath).catch(() => undefined);
+      throw err;
+    }
 
     this.securityLogger.log('admin_action_room_image_upload', {
       actingEmployeeId,
@@ -102,6 +110,61 @@ export class RoomImageService {
     });
 
     return saved;
+  }
+
+  /**
+   * Clearing the previous primary image and inserting the new one must be atomic —
+   * otherwise a concurrent upload interleaved between the two writes could leave two
+   * images both flagged isPrimary=true. Locking the Room row first (SELECT...FOR UPDATE)
+   * gives every concurrent upload for the same room a single, deterministic lock-acquisition
+   * order, which is what actually prevents the InnoDB deadlock (1213) that concurrent
+   * uploads produced without it — retrying is a safety net for the remaining low-probability
+   * cases (e.g. lock-wait timeouts under very heavy contention), not the primary fix.
+   */
+  private async runUploadTransactionWithRetry(
+    roomId: number,
+    filename: string,
+    isPrimary: boolean,
+    dto: UploadRoomImageDto,
+    file: UploadedFile,
+    mimeType: string,
+    retriesLeft: number,
+  ): Promise<RoomImage> {
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        await manager.findOne(Room, { where: { roomId }, lock: { mode: 'pessimistic_write' } });
+
+        if (isPrimary) {
+          // Only one image per room may be primary — clear any existing one first,
+          // otherwise two images can both end up with isPrimary=true.
+          await manager.update(RoomImage, { roomId, isPrimary: true }, { isPrimary: false });
+        }
+
+        const image = manager.create(RoomImage, {
+          roomId,
+          imagePath: `/uploads/rooms/${filename}`,
+          caption: dto.caption ?? null,
+          isPrimary,
+          fileSize: file.size,
+          mimeType,
+        });
+        return manager.save(image);
+      });
+    } catch (err) {
+      const isDeadlock = (err as { errno?: number })?.errno === 1213;
+      if (isDeadlock && retriesLeft > 0) {
+        return this.runUploadTransactionWithRetry(
+          roomId,
+          filename,
+          isPrimary,
+          dto,
+          file,
+          mimeType,
+          retriesLeft - 1,
+        );
+      }
+      throw err;
+    }
   }
 
   async findByRoomId(roomId: number): Promise<RoomImageResponseDto[]> {

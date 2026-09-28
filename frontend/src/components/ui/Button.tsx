@@ -20,7 +20,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       ref={ref}
       type={type}
       className={clsx(
-        'inline-flex items-center justify-center rounded-button px-5 py-2.5',
+        // py-3 + text-sm's 20px line-height = 44px tall, meeting the 44x44
+        // minimum touch target size (was py-2.5 / 40px tall).
+        'inline-flex items-center justify-center rounded-button px-5 py-3',
         'font-sans text-sm font-medium transition-colors',
         'disabled:cursor-not-allowed',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',

@@ -9,23 +9,16 @@
 # any time ADMIN_DB_PASSWORD changes.
 #
 # Usage:
-#   scripts/apply-grants.sh              # dev — docker-compose.yml + .env
-#   scripts/apply-grants.sh prod         # prod — docker-compose.prod.yml + .env.prod
+#   scripts/apply-grants.sh
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-MODE="${1:-dev}"
-if [ "$MODE" = "prod" ]; then
-    COMPOSE_FILE="docker-compose.prod.yml"
-    ENV_FILE=".env.prod"
-else
-    COMPOSE_FILE="docker-compose.yml"
-    ENV_FILE=".env"
-fi
+COMPOSE_FILE="docker-compose.yml"
+ENV_FILE=".env"
 
 if [ ! -f "$ENV_FILE" ]; then
-    echo "Missing $ENV_FILE — copy $(basename "$ENV_FILE").example and fill in values first." >&2
+    echo "Missing $ENV_FILE — copy .env.example and fill in values first." >&2
     exit 1
 fi
 

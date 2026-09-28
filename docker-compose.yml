@@ -38,7 +38,7 @@ services:
 
   auth-service:
     build:
-      context: ./services/auth-service
+      context: ./backend/auth-service
       dockerfile: Dockerfile
     container_name: liberta-auth-service
     restart: unless-stopped
@@ -60,7 +60,7 @@ services:
 
   mfa-service:
     build:
-      context: ./services/mfa-service
+      context: ./backend/mfa-service
       dockerfile: Dockerfile
     container_name: liberta-mfa-service
     restart: unless-stopped
@@ -70,6 +70,7 @@ services:
       PORT: 3002
       DB_HOST: mysql
       REDIS_HOST: redis
+      AUTH_SERVICE_URL: http://auth-service:3001
     ports:
       - "3002:3002"
     depends_on:
@@ -82,7 +83,7 @@ services:
 
   guest-service:
     build:
-      context: ./services/guest-service
+      context: ./backend/guest-service
       dockerfile: Dockerfile
     container_name: liberta-guest-service
     restart: unless-stopped
@@ -101,7 +102,7 @@ services:
 
   room-service:
     build:
-      context: ./services/room-service
+      context: ./backend/room-service
       dockerfile: Dockerfile
     container_name: liberta-room-service
     restart: unless-stopped
@@ -110,6 +111,7 @@ services:
     environment:
       PORT: 3004
       DB_HOST: mysql
+      ROOM_IMAGE_UPLOAD_DIR: /app/uploads/rooms
     ports:
       - "3004:3004"
     volumes:
@@ -122,7 +124,7 @@ services:
 
   booking-service:
     build:
-      context: ./services/booking-service
+      context: ./backend/booking-service
       dockerfile: Dockerfile
     container_name: liberta-booking-service
     restart: unless-stopped
@@ -132,6 +134,7 @@ services:
       PORT: 3005
       DB_HOST: mysql
       REDIS_HOST: redis
+      BOOKING_SLIP_UPLOAD_DIR: /app/uploads/slips
     ports:
       - "3005:3005"
     volumes:
@@ -146,7 +149,7 @@ services:
 
   admin-service:
     build:
-      context: ./services/admin-service
+      context: ./backend/admin-service
       dockerfile: Dockerfile
     container_name: liberta-admin-service
     restart: unless-stopped
@@ -180,6 +183,20 @@ services:
     networks:
       - liberta-net
 
+  # One-shot: generates the root CA + nginx's server cert/key into the
+  # tls_certs volume, then exits. Nginx waits for it to complete successfully
+  # before starting (see nginx's depends_on below).
+  ca:
+    build:
+      context: ./nginx/ca
+    container_name: liberta-ca
+    env_file:
+      - .env
+    volumes:
+      - tls_certs:/certs
+    networks:
+      - liberta-net
+
   nginx:
     image: nginx:1.27-alpine
     container_name: liberta-nginx
@@ -188,16 +205,26 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/proxy_params.conf:/etc/nginx/proxy_params.conf:ro
       - room_images:/var/www/uploads/rooms:ro
+      - tls_certs:/etc/nginx/certs:ro
     ports:
-      - "80:80"
+      - "443:443"
     depends_on:
-      - auth-service
-      - mfa-service
-      - guest-service
-      - room-service
-      - booking-service
-      - admin-service
-      - frontend
+      auth-service:
+        condition: service_started
+      mfa-service:
+        condition: service_started
+      guest-service:
+        condition: service_started
+      room-service:
+        condition: service_started
+      booking-service:
+        condition: service_started
+      admin-service:
+        condition: service_started
+      frontend:
+        condition: service_started
+      ca:
+        condition: service_completed_successfully
     networks:
       - liberta-net
 
@@ -210,3 +237,4 @@ volumes:
   redis_data:
   room_images:
   slip_images:
+  tls_certs:

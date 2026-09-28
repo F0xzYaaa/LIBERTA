@@ -95,7 +95,7 @@ export function BookingsPage(): JSX.Element {
         <ErrorMessage message={getErrorMessage(bookingsQuery.error, 'Could not load bookings.')} />
       )}
       {bookingsQuery.data && bookingsQuery.data.length === 0 && (
-        <p className="font-sans text-sage-gray">No bookings match these filters.</p>
+        <p className="font-sans text-primary-dark/70">No bookings match these filters.</p>
       )}
       {bookingsQuery.data && bookingsQuery.data.length > 0 && (
         <Card className="overflow-x-auto p-0">

@@ -1,21 +1,15 @@
 #!/usr/bin/env bash
-# Generate a self-signed TLS cert for the VPS IP. Safe to run twice — overwrites
-# any existing cert/key with a fresh 365-day pair.
+# SUPERSEDED (2026-09-20) — TLS cert generation now happens automatically in
+# the `ca` container (see nginx/ca/, wired into docker-compose.yml and
+# docker-compose.prod.yml). It runs once at `docker compose up`, writes
+# ca.crt/server.crt/server.key into the shared tls_certs volume, and exits.
+#
+# No manual step is needed anymore. This script is kept only for reference —
+# do not run it against a stack that already has the `ca` service; the certs
+# it writes to nginx/certs/ are no longer mounted by nginx (nginx now mounts
+# the tls_certs volume instead). See decisions.md 2026-09-20 for the full
+# rationale.
 set -euo pipefail
-
-CERT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/nginx/certs"
-mkdir -p "$CERT_DIR"
-
-VPS_IP="${VPS_IP:-127.0.0.1}"
-
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    -keyout "$CERT_DIR/server.key" \
-    -out "$CERT_DIR/server.crt" \
-    -subj "/C=TH/ST=Bangkok/L=Hua Hin/O=LIBERTA/CN=$VPS_IP"
-
-chmod 600 "$CERT_DIR/server.key"
-chmod 644 "$CERT_DIR/server.crt"
-
-echo "Self-signed cert generated for $VPS_IP"
-echo "  $CERT_DIR/server.crt"
-echo "  $CERT_DIR/server.key"
+echo "generate-tls.sh is superseded by the 'ca' container — see docker-compose.yml." >&2
+echo "Nothing to do; exiting without generating anything." >&2
+exit 0

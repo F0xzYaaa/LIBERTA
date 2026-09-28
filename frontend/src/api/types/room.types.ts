@@ -1,4 +1,4 @@
-// Mirrors services/room-service/src/{room,room-type,room-image}/**
+// Mirrors backend/room-service/src/{room,room-type,room-image}/**
 //
 // NOTE: GET /rooms and GET /rooms/:id return raw Room entities with NO nested
 // roomType — callers must join client-side by roomTypeId (see room.api.ts).

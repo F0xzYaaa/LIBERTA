@@ -21,9 +21,9 @@ export function GuestLayout(): JSX.Element {
       <header className="border-b border-sage-gray/15 bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <NavLink to="/" className="flex items-center gap-3">
-            <img src={logo} alt="LIBERTA หัวหิน" className="h-10 w-10 rounded-full object-cover" />
+            <img src={logo} alt="LIBERTA HUAHIN" className="h-10 w-10 rounded-full object-cover" />
             <span className="font-serif text-xl font-semibold text-primary-dark">
-              LIBERTA หัวหิน
+              LIBERTA HUAHIN
             </span>
           </NavLink>
           <nav className="flex items-center gap-6 font-sans text-sm font-medium">
@@ -52,9 +52,9 @@ export function GuestLayout(): JSX.Element {
 
       <footer className="border-t border-sage-gray/15 bg-primary-dark py-8 text-cream">
         <div className="mx-auto max-w-6xl px-6 text-center font-sans text-sm">
-          <p className="font-serif text-lg">LIBERTA หัวหิน</p>
+          <p className="font-serif text-lg">LIBERTA HUAHIN</p>
           <p className="mt-2 text-cream/70">
-            &copy; {new Date().getFullYear()} LIBERTA หัวหิน. All rights reserved.
+            &copy; {new Date().getFullYear()} LIBERTA HUAHIN. All rights reserved.
           </p>
         </div>
       </footer>

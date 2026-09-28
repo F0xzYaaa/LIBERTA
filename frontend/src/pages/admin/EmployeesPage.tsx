@@ -214,7 +214,7 @@ export function EmployeesPage(): JSX.Element {
         />
       )}
       {employeesQuery.data && employeesQuery.data.length === 0 && (
-        <p className="font-sans text-sage-gray">No employees match these filters.</p>
+        <p className="font-sans text-primary-dark/70">No employees match these filters.</p>
       )}
       {employeesQuery.data && employeesQuery.data.length > 0 && (
         <Card className="overflow-x-auto p-0">

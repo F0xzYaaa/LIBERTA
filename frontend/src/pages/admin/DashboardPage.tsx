@@ -83,7 +83,7 @@ export function DashboardPage(): JSX.Element {
     <div className="flex flex-col gap-8">
       <div>
         <h1 className="font-serif text-3xl font-semibold text-primary-dark">Dashboard</h1>
-        <p className="mt-1 font-sans text-sm text-sage-gray">
+        <p className="mt-1 font-sans text-sm text-primary-dark/70">
           Occupancy and revenue trends for {formatDate(from)} – {formatDate(to)}.
         </p>
       </div>

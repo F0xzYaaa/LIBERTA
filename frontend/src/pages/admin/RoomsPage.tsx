@@ -165,7 +165,7 @@ export function RoomsPage(): JSX.Element {
         <ErrorMessage message={getErrorMessage(roomsQuery.error, 'Could not load rooms.')} />
       )}
       {roomsQuery.data && roomsQuery.data.length === 0 && (
-        <p className="font-sans text-sage-gray">No rooms yet.</p>
+        <p className="font-sans text-primary-dark/70">No rooms yet.</p>
       )}
       {roomsQuery.data && roomsQuery.data.length > 0 && (
         <Card className="overflow-x-auto p-0">
