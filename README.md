@@ -344,4 +344,4 @@ cd frontend && npm install && npm test
 
 ## License
 
-Academic project. No license has been chosen yet.
+Released under the [MIT License](LICENSE).
