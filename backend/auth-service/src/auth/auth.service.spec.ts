@@ -31,7 +31,7 @@ describe('AuthService', () => {
     delete: jest.Mock;
     createQueryBuilder: jest.Mock;
   };
-  let roleRepo: { findOne: jest.Mock };
+  let roleRepo: { findOne: jest.Mock; find: jest.Mock };
   let redis: {
     set: jest.Mock;
     get: jest.Mock;
@@ -66,7 +66,7 @@ describe('AuthService', () => {
       delete: jest.fn(),
       createQueryBuilder: jest.fn(),
     };
-    roleRepo = { findOne: jest.fn() };
+    roleRepo = { findOne: jest.fn(), find: jest.fn() };
     redis = { set: jest.fn(), get: jest.fn(), del: jest.fn(), incr: jest.fn(), expire: jest.fn() };
     jwt = { sign: jest.fn(), verify: jest.fn() };
     config = {
@@ -235,9 +235,9 @@ describe('AuthService', () => {
       employeeRepo.findOne.mockResolvedValue(activeEmployee);
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
-      await expect(
-        service.login({ username: 'STAFF01', password: 'wrong-pass' }),
-      ).rejects.toThrow(UnauthorizedException);
+      await expect(service.login({ username: 'STAFF01', password: 'wrong-pass' })).rejects.toThrow(
+        UnauthorizedException,
+      );
       await expect(
         service.login({ username: '  staff01  ', password: 'wrong-pass' }),
       ).rejects.toThrow(UnauthorizedException);
@@ -406,6 +406,23 @@ describe('AuthService', () => {
     });
   });
 
+  describe('findAllRoles', () => {
+    it('returns roles ordered by id without timestamps', async () => {
+      roleRepo.find.mockResolvedValue([
+        { roleId: 1, roleName: 'Staff', description: 'Front desk', createdAt: new Date() },
+        { roleId: 2, roleName: 'Admin', description: null, createdAt: new Date() },
+      ]);
+
+      const roles = await service.findAllRoles();
+
+      expect(roleRepo.find).toHaveBeenCalledWith({ order: { roleId: 'ASC' } });
+      expect(roles).toEqual([
+        { roleId: 1, roleName: 'Staff', description: 'Front desk' },
+        { roleId: 2, roleName: 'Admin', description: null },
+      ]);
+    });
+  });
+
   describe('deleteEmployee', () => {
     it('deletes the employee and revokes their refresh token', async () => {
       employeeRepo.findOne.mockResolvedValue({ ...activeEmployee });
@@ -438,6 +455,54 @@ describe('AuthService', () => {
   });
 
   describe('updateEmployee', () => {
+    it('updates full name, email and phone (trimmed; empty phone clears it)', async () => {
+      employeeRepo.findOne
+        .mockResolvedValueOnce({ ...activeEmployee, phone: '081-111-2222' })
+        .mockResolvedValueOnce(null); // no other owner of the new email
+      employeeRepo.save.mockImplementation((entity) => Promise.resolve(entity));
+
+      const result = await service.updateEmployee(
+        1,
+        { fullName: '  Staff Renamed ', email: ' new@liberta.test ', phone: '' },
+        2,
+      );
+
+      expect(result.fullName).toBe('Staff Renamed');
+      expect(result.email).toBe('new@liberta.test');
+      expect(result.phone).toBeNull();
+    });
+
+    it('returns 409 when the new email belongs to another employee', async () => {
+      employeeRepo.findOne
+        .mockResolvedValueOnce({ ...activeEmployee })
+        .mockResolvedValueOnce({ ...activeEmployee, employeeId: 3 });
+
+      await expect(service.updateEmployee(1, { email: 'taken@liberta.test' }, 2)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(employeeRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('allows saving an unchanged email that the employee already owns', async () => {
+      employeeRepo.findOne
+        .mockResolvedValueOnce({ ...activeEmployee })
+        .mockResolvedValueOnce({ ...activeEmployee });
+      employeeRepo.save.mockImplementation((entity) => Promise.resolve(entity));
+
+      const result = await service.updateEmployee(1, { email: activeEmployee.email }, 2);
+
+      expect(result.email).toBe(activeEmployee.email);
+    });
+
+    it('maps a duplicate-key race on save to 409', async () => {
+      employeeRepo.findOne.mockResolvedValueOnce({ ...activeEmployee }).mockResolvedValueOnce(null);
+      employeeRepo.save.mockRejectedValue(Object.assign(new Error('dup'), { errno: 1062 }));
+
+      await expect(service.updateEmployee(1, { email: 'race@liberta.test' }, 2)).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
     it('updates isActive and returns the new summary', async () => {
       employeeRepo.findOne.mockResolvedValue({ ...activeEmployee });
       employeeRepo.save.mockImplementation((entity) => Promise.resolve(entity));

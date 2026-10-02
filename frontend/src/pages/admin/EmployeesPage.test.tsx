@@ -50,6 +50,11 @@ const OTHER: EmployeeSummary = {
   createdAt: '2026-01-01T00:00:00.000Z',
 };
 
+const ROLES = [
+  { roleId: 1, roleName: 'Staff', description: null },
+  { roleId: 2, roleName: 'Admin', description: null },
+];
+
 function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -66,6 +71,7 @@ function renderPage() {
 describe('EmployeesPage self-lockout protection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(authApi.findAllRoles).mockResolvedValue(ROLES);
   });
 
   it('renders the distinct self-lockout message on a 403 from PATCH /auth/employees/:id, not the generic fallback', async () => {
@@ -82,8 +88,8 @@ describe('EmployeesPage self-lockout protection', () => {
     const editButtons = screen.getAllByRole('button', { name: 'Edit' });
     await user.click(editButtons[0]); // SELF is the first row
 
-    await waitFor(() => expect(screen.getByText('Deactivate Account')).toBeInTheDocument());
-    await user.click(screen.getByText('Deactivate Account'));
+    await user.selectOptions(await screen.findByLabelText('Status'), 'inactive');
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }));
 
     await waitFor(() =>
       expect(
@@ -105,8 +111,8 @@ describe('EmployeesPage self-lockout protection', () => {
     await waitFor(() => expect(screen.getByText('staffuser')).toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Edit' }));
 
-    await waitFor(() => expect(screen.getByText('Deactivate Account')).toBeInTheDocument());
-    await user.click(screen.getByText('Deactivate Account'));
+    await user.selectOptions(await screen.findByLabelText('Status'), 'inactive');
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }));
 
     await waitFor(() => expect(screen.getByText('Internal error')).toBeInTheDocument());
     expect(
@@ -138,6 +144,7 @@ describe('EmployeesPage self-lockout protection', () => {
 describe('EmployeesPage delete', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(authApi.findAllRoles).mockResolvedValue(ROLES);
   });
 
   it('places Delete between Edit and Reset MFA on each row', async () => {
@@ -186,5 +193,81 @@ describe('EmployeesPage delete', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
 
     expect(await within(dialog).findByText(/appear in booking history/)).toBeInTheDocument();
+  });
+});
+
+describe('EmployeesPage full edit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(authApi.findAllRoles).mockResolvedValue(ROLES);
+  });
+
+  it('pre-fills the form and sends only the changed fields', async () => {
+    vi.mocked(authApi.findAllEmployees).mockResolvedValue([OTHER]);
+    vi.mocked(authApi.findEmployeeById).mockResolvedValue(OTHER);
+    vi.mocked(authApi.updateEmployee).mockResolvedValue({ ...OTHER, fullName: 'Renamed Staff' });
+
+    renderPage();
+    const user = userEvent.setup();
+    await screen.findByText('staffuser');
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+
+    const nameInput = await screen.findByLabelText('Full name');
+    expect(nameInput).toHaveValue('Front Desk Staff');
+    expect(screen.getByLabelText('Email')).toHaveValue('staff@liberta.test');
+    await waitFor(() => expect(screen.getByLabelText('Role')).toHaveValue('1'));
+    expect(screen.getByLabelText('Status')).toHaveValue('active');
+
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Renamed Staff');
+    await user.selectOptions(screen.getByLabelText('Role'), '2');
+    await user.type(screen.getByLabelText('Phone (optional)'), '081-999-8888');
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() =>
+      expect(authApi.updateEmployee).toHaveBeenCalledWith(2, {
+        fullName: 'Renamed Staff',
+        roleId: 2,
+        phone: '081-999-8888',
+      }),
+    );
+  });
+
+  it('does not call the API when nothing changed', async () => {
+    vi.mocked(authApi.findAllEmployees).mockResolvedValue([OTHER]);
+    vi.mocked(authApi.findEmployeeById).mockResolvedValue(OTHER);
+
+    renderPage();
+    const user = userEvent.setup();
+    await screen.findByText('staffuser');
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    await user.click(await screen.findByRole('button', { name: 'Save Changes' }));
+
+    expect(await screen.findByText('No changes to save.')).toBeInTheDocument();
+    expect(authApi.updateEmployee).not.toHaveBeenCalled();
+  });
+
+  it('shows the server message when the email is already taken (409)', async () => {
+    vi.mocked(authApi.findAllEmployees).mockResolvedValue([OTHER]);
+    vi.mocked(authApi.findEmployeeById).mockResolvedValue(OTHER);
+    vi.mocked(authApi.updateEmployee).mockRejectedValue(
+      makeAxiosError(409, 'Email already in use by another employee'),
+    );
+
+    renderPage();
+    const user = userEvent.setup();
+    await screen.findByText('staffuser');
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+
+    const emailInput = await screen.findByLabelText('Email');
+    await user.clear(emailInput);
+    await user.type(emailInput, 'admin@liberta.test');
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    expect(
+      await within(screen.getByRole('dialog')).findByText(
+        'Email already in use by another employee',
+      ),
+    ).toBeInTheDocument();
   });
 });

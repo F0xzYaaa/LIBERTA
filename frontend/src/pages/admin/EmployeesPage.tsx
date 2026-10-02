@@ -6,6 +6,7 @@ import type {
   EmployeeSummary,
   FindAllEmployeesParams,
   RegisterEmployeeRequest,
+  RoleSummary,
   UpdateEmployeeRequest,
 } from '../../api/types/auth.types';
 import type { GenerateMfaResponse } from '../../api/types/mfa.types';
@@ -80,6 +81,11 @@ export function EmployeesPage(): JSX.Element {
   const employeesQuery = useQuery({
     queryKey: ['employees', filters],
     queryFn: () => authApi.findAllEmployees(toFindAllParams(filters)),
+  });
+
+  const rolesQuery = useQuery({
+    queryKey: ['roles'],
+    queryFn: () => authApi.findAllRoles(),
   });
 
   // Fetches a fresh copy of the employee-under-edit by id (rather than reusing
@@ -182,10 +188,6 @@ export function EmployeesPage(): JSX.Element {
     });
   }
 
-  function handleActiveToggle(employee: EmployeeSummary): void {
-    updateMutation.mutate({ id: employee.employeeId, payload: { isActive: !employee.isActive } });
-  }
-
   const updateErrorMessage = updateMutation.isError
     ? getStatusCode(updateMutation.error) === 403
       ? 'You cannot modify your own employee account (self-lockout protection).'
@@ -219,7 +221,6 @@ export function EmployeesPage(): JSX.Element {
         </div>
       </Card>
 
-      {updateErrorMessage && <ErrorMessage message={updateErrorMessage} />}
       {mfaResetMutation.isError && (
         <ErrorMessage
           message={getErrorMessage(
@@ -361,7 +362,10 @@ export function EmployeesPage(): JSX.Element {
 
       <Modal
         isOpen={editingEmployeeId !== null}
-        onClose={() => setEditingEmployeeId(null)}
+        onClose={() => {
+          setEditingEmployeeId(null);
+          updateMutation.reset();
+        }}
         title={
           editingEmployeeQuery.data ? `Edit ${editingEmployeeQuery.data.username}` : 'Edit Employee'
         }
@@ -374,9 +378,15 @@ export function EmployeesPage(): JSX.Element {
         )}
         {editingEmployeeQuery.data && (
           <EditEmployeePanel
+            key={editingEmployeeQuery.data.employeeId}
             employee={editingEmployeeQuery.data}
+            roles={rolesQuery.data ?? []}
             isPending={updateMutation.isPending}
-            onToggleActive={handleActiveToggle}
+            errorMessage={updateErrorMessage}
+            onSave={(payload) =>
+              updateMutation.mutate({ id: editingEmployeeQuery.data.employeeId, payload })
+            }
+            onCancel={() => setEditingEmployeeId(null)}
           />
         )}
       </Modal>
@@ -429,23 +439,123 @@ export function EmployeesPage(): JSX.Element {
 
 interface EditEmployeePanelProps {
   employee: EmployeeSummary;
+  roles: RoleSummary[];
   isPending: boolean;
-  onToggleActive: (employee: EmployeeSummary) => void;
+  errorMessage: string | null;
+  onSave: (payload: UpdateEmployeeRequest) => void;
+  onCancel: () => void;
 }
+
+const STATUS_OPTIONS = [
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive (cannot log in)' },
+];
 
 function EditEmployeePanel({
   employee,
+  roles,
   isPending,
-  onToggleActive,
+  errorMessage,
+  onSave,
+  onCancel,
 }: EditEmployeePanelProps): JSX.Element {
+  const [fullName, setFullName] = useState(employee.fullName);
+  const [email, setEmail] = useState(employee.email);
+  const [phone, setPhone] = useState(employee.phone ?? '');
+  const [roleId, setRoleId] = useState(String(employee.roleId));
+  const [status, setStatus] = useState(employee.isActive ? 'active' : 'inactive');
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Keep the current role selectable even before the roles list has loaded.
+  const roleOptions = roles.length
+    ? roles.map((role) => ({ value: role.roleId, label: role.roleName }))
+    : [{ value: employee.roleId, label: employee.roleName ?? `Role #${employee.roleId}` }];
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    setFormError(null);
+
+    const trimmedName = fullName.trim();
+    if (!trimmedName || trimmedName.length > 100) {
+      setFormError('Full name is required and must be at most 100 characters.');
+      return;
+    }
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setFormError('Email is required.');
+      return;
+    }
+    const trimmedPhone = phone.trim();
+    if (trimmedPhone && (trimmedPhone.length < 9 || trimmedPhone.length > 20)) {
+      setFormError('Phone must be 9-20 characters, or empty.');
+      return;
+    }
+
+    // Send only what changed, so an unchanged field never trips a validation rule.
+    const payload: UpdateEmployeeRequest = {};
+    if (trimmedName !== employee.fullName) payload.fullName = trimmedName;
+    if (trimmedEmail !== employee.email) payload.email = trimmedEmail;
+    if (trimmedPhone !== (employee.phone ?? '')) payload.phone = trimmedPhone || null;
+    if (Number(roleId) !== employee.roleId) payload.roleId = Number(roleId);
+    if ((status === 'active') !== employee.isActive) payload.isActive = status === 'active';
+
+    if (Object.keys(payload).length === 0) {
+      setFormError('No changes to save.');
+      return;
+    }
+    onSave(payload);
+  }
+
   return (
-    <div className="flex flex-col gap-4">
+    <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
       <p className="font-sans text-sm text-sage-gray">
-        Role: <span className="font-medium text-primary-dark">{employee.roleName}</span>
+        Username: <span className="font-medium text-primary-dark">{employee.username}</span> (cannot
+        be changed)
       </p>
-      <Button disabled={isPending} onClick={() => onToggleActive(employee)} className="self-start">
-        {employee.isActive ? 'Deactivate Account' : 'Activate Account'}
-      </Button>
-    </div>
+      <Input
+        label="Full name"
+        required
+        maxLength={100}
+        value={fullName}
+        onChange={(e) => setFullName(e.target.value)}
+      />
+      <Input
+        label="Email"
+        type="email"
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
+      <Input
+        label="Phone (optional)"
+        maxLength={20}
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+      />
+      <div className="grid grid-cols-2 gap-4">
+        <Select
+          label="Role"
+          options={roleOptions}
+          value={roleId}
+          onChange={(e) => setRoleId(e.target.value)}
+        />
+        <Select
+          label="Status"
+          options={STATUS_OPTIONS}
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+        />
+      </div>
+      {formError && <ErrorMessage message={formError} />}
+      {errorMessage && <ErrorMessage message={errorMessage} />}
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" onClick={onCancel} disabled={isPending}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={isPending}>
+          {isPending ? 'Saving...' : 'Save Changes'}
+        </Button>
+      </div>
+    </form>
   );
 }

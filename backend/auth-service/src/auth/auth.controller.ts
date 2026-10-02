@@ -93,6 +93,15 @@ export class AuthController {
     return this.authService.findAllEmployees(filters);
   }
 
+  @Get('roles')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('Admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin-only: list roles (for role pickers)' })
+  async findAllRoles() {
+    return this.authService.findAllRoles();
+  }
+
   @Get('employees/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('Admin')
@@ -110,11 +119,14 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('Admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Admin-only: activate/deactivate an employee or change their role' })
+  @ApiOperation({
+    summary: 'Admin-only: edit an employee (full name, email, phone, role, active status)',
+  })
   @ApiResponse({ status: 200, type: EmployeeSummaryResponseDto })
   @ApiResponse({ status: 404, description: 'Employee not found' })
   @ApiResponse({ status: 400, description: 'roleId does not reference an existing Role' })
   @ApiResponse({ status: 403, description: 'Admins cannot modify their own account' })
+  @ApiResponse({ status: 409, description: 'Email already in use by another employee' })
   async updateEmployee(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateEmployeeDto,

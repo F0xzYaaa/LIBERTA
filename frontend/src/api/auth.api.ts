@@ -6,6 +6,7 @@ import type {
   LoginResponse,
   RegisterEmployeeRequest,
   RegisterEmployeeResponse,
+  RoleSummary,
   TokenResponse,
   UpdateEmployeeRequest,
 } from './types/auth.types';
@@ -64,6 +65,12 @@ export async function updateEmployee(
   payload: UpdateEmployeeRequest,
 ): Promise<EmployeeSummary> {
   const { data } = await apiClient.patch<EmployeeSummary>(`/auth/employees/${id}`, payload);
+  return data;
+}
+
+/** Admin-only: list roles for role pickers. */
+export async function findAllRoles(): Promise<RoleSummary[]> {
+  const { data } = await apiClient.get<RoleSummary[]>('/auth/roles');
   return data;
 }
 

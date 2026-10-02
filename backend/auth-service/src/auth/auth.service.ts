@@ -32,6 +32,8 @@ const TEMP_TOKEN_PREFIX = 'temp_token:';
 const REFRESH_JTI_PREFIX = 'refresh_jti:';
 // MySQL ER_ROW_IS_REFERENCED_2: the row is still referenced by a foreign key.
 const ER_ROW_IS_REFERENCED = 1451;
+// MySQL ER_DUP_ENTRY: a UNIQUE index rejected the value.
+const ER_DUP_ENTRY = 1062;
 const LOGIN_ATTEMPT_PREFIX = 'login_attempts:';
 const BCRYPT_COST = 10;
 
@@ -167,6 +169,12 @@ export class AuthService {
     return this.toEmployeeSummary(employee);
   }
 
+  /** Roles for the admin UI's role dropdowns. */
+  async findAllRoles(): Promise<Pick<Role, 'roleId' | 'roleName' | 'description'>[]> {
+    const roles = await this.roleRepo.find({ order: { roleId: 'ASC' } });
+    return roles.map(({ roleId, roleName, description }) => ({ roleId, roleName, description }));
+  }
+
   async updateEmployee(
     employeeId: number,
     dto: UpdateEmployeeDto,
@@ -196,14 +204,41 @@ export class AuthService {
     if (dto.isActive !== undefined) {
       employee.isActive = dto.isActive;
     }
+    // null is treated as "not sent" for the required profile fields.
+    if (dto.fullName != null) {
+      employee.fullName = dto.fullName.trim();
+    }
+    if (dto.email != null) {
+      const email = dto.email.trim();
+      const owner = await this.employeeRepo.findOne({ where: { email } });
+      if (owner && owner.employeeId !== employeeId) {
+        throw new ConflictException('Email already in use by another employee');
+      }
+      employee.email = email;
+    }
+    if (dto.phone !== undefined) {
+      employee.phone = dto.phone?.trim() || null;
+    }
 
-    const saved = await this.employeeRepo.save(employee);
+    let saved: Employee;
+    try {
+      saved = await this.employeeRepo.save(employee);
+    } catch (err) {
+      // A concurrent update can still race the email pre-check above.
+      if ((err as { errno?: number })?.errno === ER_DUP_ENTRY) {
+        throw new ConflictException('Email already in use by another employee');
+      }
+      throw err;
+    }
 
     this.securityLogger.log('admin_action_update_employee', {
       actingEmployeeId,
       targetEmployeeId: employeeId,
       isActive: dto.isActive,
       roleId: dto.roleId,
+      profileFieldsChanged: (['fullName', 'email', 'phone'] as const).filter(
+        (key) => dto[key] !== undefined,
+      ),
     });
 
     return this.toEmployeeSummary(saved);

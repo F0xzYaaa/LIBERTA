@@ -62,6 +62,16 @@ export interface FindAllEmployeesParams {
 export interface UpdateEmployeeRequest {
   isActive?: boolean;
   roleId?: number;
+  fullName?: string;
+  email?: string;
+  /** null clears the phone number. */
+  phone?: string | null;
+}
+
+export interface RoleSummary {
+  roleId: number;
+  roleName: string;
+  description: string | null;
 }
 
 /** Decoded JWT access-token payload (client-side decode only — never verified in-browser). */
