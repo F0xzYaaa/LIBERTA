@@ -48,7 +48,6 @@ There is no payment gateway. A guest pays outside the system, staff check the pa
 | Docker with Compose v2 | [Docker Desktop](https://www.docker.com/products/docker-desktop/) on Windows/macOS, Docker Engine on Linux |
 | Git | to download the project |
 | Free port **443** | Nginx serves HTTPS here. Stop anything else that uses 443 |
-| Free ports 3001-3006, 3306, 5173, 6379 | published by the default compose file |
 | About 4 GB RAM and 5 GB disk | for the images and database |
 
 You do **not** need to install Node.js, MySQL or Redis. Everything runs in containers.
@@ -93,13 +92,9 @@ docker compose up -d --build
 
 The first run builds all images and takes several minutes. MySQL loads the database schema and sample data by itself on its first start.
 
-**4. Create the read-only dashboard database user (one time)**
+**4. Read-only dashboard database user (automatic)**
 
-```bash
-bash scripts/apply-grants.sh
-```
-
-Run it from Git Bash or WSL on Windows, or any shell on Linux/macOS. It needs `envsubst` (package `gettext-base` on Ubuntu). Run it again whenever you change `ADMIN_DB_PASSWORD`.
+On a fresh database, MySQL creates the read-only `admin_ro` user by itself (`database/03-grants.sh`). Run `bash scripts/apply-grants.sh` only if your database volume is older than this, or after you change `ADMIN_DB_PASSWORD`. Run it from Git Bash or WSL on Windows, or any shell on Linux/macOS.
 
 **5. Restart Nginx once** so it finds all services:
 
@@ -144,7 +139,7 @@ sudo ufw allow 443/tcp
 sudo ufw enable
 ```
 
-> The default `docker-compose.yml` also publishes the service ports (3001-3006, 3306, 5173, 6379) for development. Docker bypasses `ufw` for published ports, so on a public server remove those `ports:` lines from every service except `nginx` before you start it. Nginx reaches the services over the internal Docker network and does not need them.
+> `docker-compose.yml` publishes only Nginx's port 443. MySQL, Redis and the services stay on the internal Docker network, which matters because Docker bypasses `ufw` for published ports. For local debugging you can add `docker-compose.dev.yml`, which publishes their ports on `127.0.0.1` only; never use it on a server.
 
 **3. Get the project onto the server**
 
@@ -170,9 +165,10 @@ SERVER_CN=203.0.113.10        # your server's public IP or domain name
 
 ```bash
 docker compose up -d --build
-bash scripts/apply-grants.sh
 docker compose restart nginx
 ```
+
+On an existing database created before automatic grants, also run `bash scripts/apply-grants.sh` once.
 
 **6. Verify**
 
@@ -262,7 +258,6 @@ Backups are compressed SQL dumps in `/opt/liberta/backups`, and the last 14 are 
 ```bash
 docker compose down -v
 docker compose up -d --build
-bash scripts/apply-grants.sh
 ```
 
 ## Troubleshooting
@@ -273,7 +268,8 @@ bash scripts/apply-grants.sh
 | Services keep restarting, log says `Access denied for user 'root'` | The password in `.env` differs from the one stored in the MySQL volume. Change the MySQL password to match `.env`, or use `docker compose down -v` for a fresh start. |
 | `nginx` will not start, `port is already allocated` | Another program uses port 443. Stop it, or change `"443:443"` in `docker-compose.yml` to another host port such as `"8443:443"` and browse to `https://localhost:8443/`. |
 | Certificate warning in the browser | Expected with a self-signed certificate. Continue past the warning. |
-| Admin dashboard shows errors | The read-only user is missing. Run `bash scripts/apply-grants.sh`. |
+| Admin dashboard shows errors, admin-service logs `Access denied for user 'admin_ro'` | The read-only user is missing (database created before automatic grants) or its password changed. Run `bash scripts/apply-grants.sh`, then `docker compose restart admin-service nginx`. |
+| Delete shows "has bookings" / "appear in booking history" / "rooms still use it" | By design: anything referenced by bookings is kept so payment history stays intact. Set the room to Out of Service, deactivate the employee, or delete/reassign the rooms first. |
 | Cannot open the site from another device | Check the firewall allows 443 and that you use the server address, not `localhost`. Set `SERVER_CN` to that address. |
 | Login says too many attempts (429) | Too many failed logins for that account. Wait 15 minutes. |
 | Lost the authenticator app | An admin can reset a user's MFA on the employee management page. If the only admin lost theirs, reset in the database: `DELETE FROM BackupCode; DELETE FROM MFASecret; UPDATE Employee SET mfa_enabled = 0;` |

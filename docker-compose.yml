@@ -1,3 +1,11 @@
+# LIBERTA หัวหิน — Docker Compose stack.
+#
+# Only nginx publishes a port (443). Every other service (MySQL, Redis, the 6
+# backends, the frontend) is reachable only on the internal liberta-net
+# network. Docker bypasses host firewalls such as ufw for published ports, so
+# publishing them here would expose the database to the internet on a VPS.
+# For local debugging access to those ports, add docker-compose.dev.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 services:
   mysql:
     image: mysql:8.0
@@ -6,12 +14,16 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: liberta_hotel
-    ports:
-      - "3306:3306"
+      # Read by database/03-grants.sh to create the read-only admin_ro user.
+      ADMIN_DB_PASSWORD: ${ADMIN_DB_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./database/03-grants.sh:/docker-entrypoint-initdb.d/03-grants.sh:ro
+      # Outside initdb.d on purpose: it holds a placeholder and must only be
+      # run through 03-grants.sh, never verbatim.
+      - ./database/grants.sql:/liberta/grants.sql:ro
     networks:
       - liberta-net
     healthcheck:
@@ -24,8 +36,6 @@ services:
     image: redis:7-alpine
     container_name: liberta-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -48,8 +58,6 @@ services:
       PORT: 3001
       DB_HOST: mysql
       REDIS_HOST: redis
-    ports:
-      - "3001:3001"
     depends_on:
       mysql:
         condition: service_healthy
@@ -71,8 +79,6 @@ services:
       DB_HOST: mysql
       REDIS_HOST: redis
       AUTH_SERVICE_URL: http://auth-service:3001
-    ports:
-      - "3002:3002"
     depends_on:
       mysql:
         condition: service_healthy
@@ -92,8 +98,6 @@ services:
     environment:
       PORT: 3003
       DB_HOST: mysql
-    ports:
-      - "3003:3003"
     depends_on:
       mysql:
         condition: service_healthy
@@ -112,8 +116,6 @@ services:
       PORT: 3004
       DB_HOST: mysql
       ROOM_IMAGE_UPLOAD_DIR: /app/uploads/rooms
-    ports:
-      - "3004:3004"
     volumes:
       - room_images:/app/uploads/rooms
     depends_on:
@@ -135,8 +137,6 @@ services:
       DB_HOST: mysql
       REDIS_HOST: redis
       BOOKING_SLIP_UPLOAD_DIR: /app/uploads/slips
-    ports:
-      - "3005:3005"
     volumes:
       - slip_images:/app/uploads/slips
     depends_on:
@@ -161,8 +161,6 @@ services:
       REDIS_HOST: redis
       ADMIN_DB_USERNAME: ${ADMIN_DB_USERNAME}
       ADMIN_DB_PASSWORD: ${ADMIN_DB_PASSWORD}
-    ports:
-      - "3006:3006"
     depends_on:
       mysql:
         condition: service_healthy
@@ -178,8 +176,6 @@ services:
       target: dev
     container_name: liberta-frontend
     restart: unless-stopped
-    ports:
-      - "5173:5173"
     networks:
       - liberta-net
 

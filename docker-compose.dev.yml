@@ -1,0 +1,31 @@
+# LIBERTA หัวหิน — local development port mappings (NOT for servers).
+#
+# Publishes MySQL, Redis and the 6 backend ports on 127.0.0.1 only, so local
+# tools (DB clients, curl, tests) can reach them while nothing is exposed to
+# the network. Use together with the main file:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+services:
+  mysql:
+    ports:
+      - "127.0.0.1:3306:3306"
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"
+  auth-service:
+    ports:
+      - "127.0.0.1:3001:3001"
+  mfa-service:
+    ports:
+      - "127.0.0.1:3002:3002"
+  guest-service:
+    ports:
+      - "127.0.0.1:3003:3003"
+  room-service:
+    ports:
+      - "127.0.0.1:3004:3004"
+  booking-service:
+    ports:
+      - "127.0.0.1:3005:3005"
+  admin-service:
+    ports:
+      - "127.0.0.1:3006:3006"

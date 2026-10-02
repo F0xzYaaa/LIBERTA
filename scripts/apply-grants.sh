@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Creates/updates the read-only admin_ro MySQL user (database/grants.sql) against
-# the running mysql container. Not part of docker-entrypoint-initdb.d because that
-# mechanism runs .sql files verbatim — it does not substitute the ${ADMIN_DB_PASSWORD}
-# placeholder grants.sql uses, so this script does the substitution instead.
+# the running mysql container.
 #
-# Safe to run repeatedly: CREATE USER IF NOT EXISTS + repeated GRANT SELECT are
-# both idempotent. Run once after the first `docker compose up -d mysql`, and again
-# any time ADMIN_DB_PASSWORD changes.
+# A FRESH MySQL volume does not need this: database/03-grants.sh runs from
+# docker-entrypoint-initdb.d and creates admin_ro automatically. Run this script
+# only for a volume created before that existed, or after ADMIN_DB_PASSWORD
+# changes (grants.sql's ALTER USER updates the password).
+#
+# Safe to run repeatedly: CREATE USER IF NOT EXISTS, ALTER USER and GRANT SELECT
+# are all idempotent.
 #
 # Usage:
 #   scripts/apply-grants.sh
@@ -32,8 +34,17 @@ if [ -z "${ADMIN_DB_PASSWORD:-}" ]; then
     exit 1
 fi
 
+# Substitute the placeholder with plain bash (same escaping as 03-grants.sh) so
+# envsubst/gettext-base is not required on the host.
+bs='\'
+q="'"
+pw="${ADMIN_DB_PASSWORD//"$bs"/"$bs$bs"}"
+pw="${pw//"$q"/"$q$q"}"
+sql="$(cat database/grants.sql)"
+sql="${sql//'${ADMIN_DB_PASSWORD}'/"$pw"}"
+
 echo "Applying database/grants.sql (admin_ro read-only user) via $COMPOSE_FILE..."
-ADMIN_DB_PASSWORD="$ADMIN_DB_PASSWORD" envsubst '${ADMIN_DB_PASSWORD}' < database/grants.sql \
+printf '%s\n' "$sql" \
     | docker compose -f "$COMPOSE_FILE" exec -T mysql \
         mysql -u root -p"$MYSQL_ROOT_PASSWORD" "${MYSQL_DATABASE:-liberta_hotel}"
 
