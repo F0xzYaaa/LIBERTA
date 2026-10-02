@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { SecurityLogger } from '../common/security-logger.service';
@@ -7,10 +7,22 @@ import { RoomTypeService } from './room-type.service';
 
 describe('RoomTypeService', () => {
   let service: RoomTypeService;
-  let repo: { find: jest.Mock; findOne: jest.Mock; create: jest.Mock; save: jest.Mock };
+  let repo: {
+    find: jest.Mock;
+    findOne: jest.Mock;
+    create: jest.Mock;
+    save: jest.Mock;
+    delete: jest.Mock;
+  };
 
   beforeEach(async () => {
-    repo = { find: jest.fn(), findOne: jest.fn(), create: jest.fn(), save: jest.fn() };
+    repo = {
+      find: jest.fn(),
+      findOne: jest.fn(),
+      create: jest.fn(),
+      save: jest.fn(),
+      delete: jest.fn(),
+    };
     const moduleRef = await Test.createTestingModule({
       providers: [
         RoomTypeService,
@@ -58,5 +70,38 @@ describe('RoomTypeService', () => {
 
     expect(result.typeName).toBe('Old Name');
     expect(result.pricePerNight).toBe(1500);
+  });
+
+  describe('delete', () => {
+    it('deletes a room type that no room uses', async () => {
+      repo.findOne.mockResolvedValue({ roomTypeId: 3, typeName: 'Garden Room' });
+      repo.delete.mockResolvedValue({ affected: 1 });
+
+      await service.delete(3, 1);
+
+      expect(repo.delete).toHaveBeenCalledWith({ roomTypeId: 3 });
+    });
+
+    it('returns 409 when rooms still reference the room type', async () => {
+      repo.findOne.mockResolvedValue({ roomTypeId: 3, typeName: 'Garden Room' });
+      repo.delete.mockRejectedValue(Object.assign(new Error('FK'), { errno: 1451 }));
+
+      await expect(service.delete(3, 1)).rejects.toThrow(ConflictException);
+    });
+
+    it('rethrows unexpected database errors unchanged', async () => {
+      repo.findOne.mockResolvedValue({ roomTypeId: 3, typeName: 'Garden Room' });
+      const boom = Object.assign(new Error('lost connection'), { errno: 2013 });
+      repo.delete.mockRejectedValue(boom);
+
+      await expect(service.delete(3, 1)).rejects.toBe(boom);
+    });
+
+    it('throws NotFoundException for an unknown room type', async () => {
+      repo.findOne.mockResolvedValue(null);
+
+      await expect(service.delete(999, 1)).rejects.toThrow(NotFoundException);
+      expect(repo.delete).not.toHaveBeenCalled();
+    });
   });
 });

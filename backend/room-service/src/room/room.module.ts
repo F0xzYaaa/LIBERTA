@@ -3,12 +3,13 @@ import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtStrategy } from '../auth/strategies/jwt.strategy';
 import { SecurityLogger } from '../common/security-logger.service';
+import { RoomImage } from '../room-image/entities/room-image.entity';
 import { Room } from './entities/room.entity';
 import { RoomController } from './room.controller';
 import { RoomService } from './room.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Room]), PassportModule],
+  imports: [TypeOrmModule.forFeature([Room, RoomImage]), PassportModule],
   controllers: [RoomController],
   providers: [RoomService, JwtStrategy, SecurityLogger],
 })

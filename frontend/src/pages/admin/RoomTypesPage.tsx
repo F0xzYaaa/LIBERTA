@@ -23,6 +23,7 @@ import {
   PackageDetailsEditor,
   recordToPairs,
 } from '../../components/admin/PackageDetailsEditor';
+import { ConfirmDeleteModal } from '../../components/admin/ConfirmDeleteModal';
 import { getErrorMessage } from '../../lib/apiError';
 import { formatCurrency } from '../../lib/format';
 
@@ -62,6 +63,7 @@ export function RoomTypesPage(): JSX.Element {
   const [editingRoomType, setEditingRoomType] = useState<RoomType | null>(null);
   const [form, setForm] = useState<RoomTypeFormState>(emptyForm());
   const [formError, setFormError] = useState<string | null>(null);
+  const [deletingRoomType, setDeletingRoomType] = useState<RoomType | null>(null);
 
   const roomTypesQuery = useQuery({
     queryKey: ['room-types'],
@@ -86,6 +88,20 @@ export function RoomTypesPage(): JSX.Element {
       setIsModalOpen(false);
     },
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => roomApi.deleteRoomType(id),
+    onSuccess: () => {
+      showToast('Room type deleted.', 'success');
+      void queryClient.invalidateQueries({ queryKey: ['room-types'] });
+      setDeletingRoomType(null);
+    },
+  });
+
+  function openDeleteModal(roomType: RoomType): void {
+    deleteMutation.reset();
+    setDeletingRoomType(roomType);
+  }
 
   function openCreateModal(): void {
     setEditingRoomType(null);
@@ -170,13 +186,14 @@ export function RoomTypesPage(): JSX.Element {
                   {roomType.description}
                 </p>
               )}
-              <Button
-                variant="ghost"
-                className="mt-4 self-start"
-                onClick={() => openEditModal(roomType)}
-              >
-                Edit
-              </Button>
+              <div className="mt-4 flex gap-2">
+                <Button variant="ghost" onClick={() => openEditModal(roomType)}>
+                  Edit
+                </Button>
+                <Button variant="danger" onClick={() => openDeleteModal(roomType)}>
+                  Delete
+                </Button>
+              </div>
             </Card>
           ))}
         </div>
@@ -235,6 +252,18 @@ export function RoomTypesPage(): JSX.Element {
           </Button>
         </form>
       </Modal>
+
+      <ConfirmDeleteModal
+        itemLabel={deletingRoomType ? `room type "${deletingRoomType.typeName}"` : null}
+        isPending={deleteMutation.isPending}
+        errorMessage={
+          deleteMutation.isError
+            ? getErrorMessage(deleteMutation.error, 'Could not delete this room type.')
+            : null
+        }
+        onConfirm={() => deletingRoomType && deleteMutation.mutate(deletingRoomType.roomTypeId)}
+        onClose={() => setDeletingRoomType(null)}
+      />
     </div>
   );
 }

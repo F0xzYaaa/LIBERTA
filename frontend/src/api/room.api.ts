@@ -40,6 +40,11 @@ export async function updateRoom(id: number, payload: UpdateRoomRequest): Promis
   return data;
 }
 
+/** Admin-only: delete a room. Fails with 409 if the room has bookings. */
+export async function deleteRoom(id: number): Promise<void> {
+  await apiClient.delete(`/rooms/${id}`);
+}
+
 /** Client-side join: fetch all rooms, then attach each room's RoomType by roomTypeId. */
 export async function findAllRoomsWithType(
   params: FindAllRoomsParams = {},
@@ -83,6 +88,11 @@ export async function updateRoomType(
 ): Promise<RoomType> {
   const { data } = await apiClient.patch<RoomType>(`/room-types/${id}`, payload);
   return data;
+}
+
+/** Admin-only: delete a room type. Fails with 409 while rooms still use it. */
+export async function deleteRoomType(id: number): Promise<void> {
+  await apiClient.delete(`/room-types/${id}`);
 }
 
 // ---------- room images ----------

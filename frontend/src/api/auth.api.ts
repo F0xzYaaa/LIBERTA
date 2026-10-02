@@ -66,3 +66,8 @@ export async function updateEmployee(
   const { data } = await apiClient.patch<EmployeeSummary>(`/auth/employees/${id}`, payload);
   return data;
 }
+
+/** Admin-only: delete an employee. Fails with 409 if they appear in booking history. */
+export async function deleteEmployee(id: number): Promise<void> {
+  await apiClient.delete(`/auth/employees/${id}`);
+}

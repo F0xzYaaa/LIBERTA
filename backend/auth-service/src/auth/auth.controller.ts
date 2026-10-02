@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseIntPipe,
   Patch,
@@ -118,5 +121,22 @@ export class AuthController {
     @Req() req: RequestWithUser,
   ): Promise<EmployeeSummaryResponseDto> {
     return this.authService.updateEmployee(id, dto, req.user.sub);
+  }
+
+  @Delete('employees/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('Admin')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Admin-only: delete an employee who has no booking history' })
+  @ApiResponse({ status: 204 })
+  @ApiResponse({ status: 404, description: 'Employee not found' })
+  @ApiResponse({ status: 403, description: 'Admins cannot delete their own account' })
+  @ApiResponse({ status: 409, description: 'Employee appears in booking history' })
+  async deleteEmployee(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: RequestWithUser,
+  ): Promise<void> {
+    await this.authService.deleteEmployee(id, req.user.sub);
   }
 }

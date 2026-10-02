@@ -30,6 +30,8 @@ import { UpdateEmployeeDto } from './dto/update-employee.dto';
 
 const TEMP_TOKEN_PREFIX = 'temp_token:';
 const REFRESH_JTI_PREFIX = 'refresh_jti:';
+// MySQL ER_ROW_IS_REFERENCED_2: the row is still referenced by a foreign key.
+const ER_ROW_IS_REFERENCED = 1451;
 const LOGIN_ATTEMPT_PREFIX = 'login_attempts:';
 const BCRYPT_COST = 10;
 
@@ -205,6 +207,44 @@ export class AuthService {
     });
 
     return this.toEmployeeSummary(saved);
+  }
+
+  /**
+   * Permanently deletes an employee who has no booking history. Booking and
+   * BookingLog keep plain (non-cascading) FKs to Employee, so MySQL refuses the
+   * delete for anyone who created/confirmed a booking or appears in the audit
+   * log; that refusal becomes a 409 pointing at Deactivate instead.
+   * MFASecret/BackupCode rows cascade in the DB.
+   */
+  async deleteEmployee(employeeId: number, actingEmployeeId: number): Promise<void> {
+    // Same self-lockout guard as updateEmployee.
+    if (employeeId === actingEmployeeId) {
+      throw new ForbiddenException('Admins cannot delete their own employee record');
+    }
+
+    const employee = await this.employeeRepo.findOne({ where: { employeeId } });
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    try {
+      await this.employeeRepo.delete({ employeeId });
+    } catch (err) {
+      if ((err as { errno?: number })?.errno === ER_ROW_IS_REFERENCED) {
+        throw new ConflictException(
+          `Cannot delete "${employee.username}": they appear in booking history. Deactivate the account instead.`,
+        );
+      }
+      throw err;
+    }
+
+    // Revoke their refresh token so no new access token can be minted.
+    await this.redis.del(`${REFRESH_JTI_PREFIX}${employeeId}`);
+
+    this.securityLogger.log('admin_action_delete_employee', {
+      actingEmployeeId,
+      targetEmployeeId: employeeId,
+    });
   }
 
   private toEmployeeSummary(employee: Employee): EmployeeSummaryResponseDto {

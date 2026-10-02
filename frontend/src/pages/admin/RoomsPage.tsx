@@ -20,6 +20,7 @@ import {
   Select,
   useToast,
 } from '../../components/ui';
+import { ConfirmDeleteModal } from '../../components/admin/ConfirmDeleteModal';
 import { getErrorMessage } from '../../lib/apiError';
 
 const ROOM_STATUS_OPTIONS = Object.values(RoomStatus).map((status) => ({
@@ -68,6 +69,7 @@ export function RoomsPage(): JSX.Element {
   const [form, setForm] = useState<RoomFormState>(emptyForm(''));
   const [formError, setFormError] = useState<string | null>(null);
   const [imagesRoomId, setImagesRoomId] = useState<number | null>(null);
+  const [deletingRoom, setDeletingRoom] = useState<RoomWithType | null>(null);
 
   const roomTypesQuery = useQuery({
     queryKey: ['room-types'],
@@ -97,6 +99,20 @@ export function RoomsPage(): JSX.Element {
       setIsModalOpen(false);
     },
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => roomApi.deleteRoom(id),
+    onSuccess: () => {
+      showToast('Room deleted.', 'success');
+      void queryClient.invalidateQueries({ queryKey: ['rooms'] });
+      setDeletingRoom(null);
+    },
+  });
+
+  function openDeleteModal(room: RoomWithType): void {
+    deleteMutation.reset();
+    setDeletingRoom(room);
+  }
 
   function openCreateModal(): void {
     const defaultRoomTypeId = roomTypesQuery.data?.[0]
@@ -201,6 +217,9 @@ export function RoomsPage(): JSX.Element {
                       <Button variant="ghost" onClick={() => setImagesRoomId(room.roomId)}>
                         Images
                       </Button>
+                      <Button variant="danger" onClick={() => openDeleteModal(room)}>
+                        Delete
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -263,6 +282,18 @@ export function RoomsPage(): JSX.Element {
       >
         {imagesRoomId !== null && <RoomImagesPanel roomId={imagesRoomId} />}
       </Modal>
+
+      <ConfirmDeleteModal
+        itemLabel={deletingRoom ? `room ${deletingRoom.roomNumber}` : null}
+        isPending={deleteMutation.isPending}
+        errorMessage={
+          deleteMutation.isError
+            ? getErrorMessage(deleteMutation.error, 'Could not delete this room.')
+            : null
+        }
+        onConfirm={() => deletingRoom && deleteMutation.mutate(deletingRoom.roomId)}
+        onClose={() => setDeletingRoom(null)}
+      />
     </div>
   );
 }

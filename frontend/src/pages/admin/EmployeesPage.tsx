@@ -20,6 +20,7 @@ import {
   Select,
   useToast,
 } from '../../components/ui';
+import { ConfirmDeleteModal } from '../../components/admin/ConfirmDeleteModal';
 import { getErrorMessage, getStatusCode } from '../../lib/apiError';
 import { formatDate } from '../../lib/format';
 
@@ -74,6 +75,7 @@ export function EmployeesPage(): JSX.Element {
   const [editingEmployeeId, setEditingEmployeeId] = useState<number | null>(null);
   const [mfaResetResult, setMfaResetResult] = useState<GenerateMfaResponse | null>(null);
   const [mfaResetTargetName, setMfaResetTargetName] = useState<string | null>(null);
+  const [deletingEmployee, setDeletingEmployee] = useState<EmployeeSummary | null>(null);
 
   const employeesQuery = useQuery({
     queryKey: ['employees', filters],
@@ -118,6 +120,26 @@ export function EmployeesPage(): JSX.Element {
       showToast('MFA reset — share the new setup with the employee securely.', 'info');
     },
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => authApi.deleteEmployee(id),
+    onSuccess: () => {
+      showToast('Employee deleted.', 'success');
+      void queryClient.invalidateQueries({ queryKey: ['employees'] });
+      setDeletingEmployee(null);
+    },
+  });
+
+  function openDeleteModal(employee: EmployeeSummary): void {
+    deleteMutation.reset();
+    setDeletingEmployee(employee);
+  }
+
+  const deleteErrorMessage = deleteMutation.isError
+    ? getStatusCode(deleteMutation.error) === 403
+      ? 'You cannot delete your own employee account (self-lockout protection).'
+      : getErrorMessage(deleteMutation.error, 'Could not delete this employee.')
+    : null;
 
   function handleCreateSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -260,6 +282,9 @@ export function EmployeesPage(): JSX.Element {
                       >
                         Edit
                       </Button>
+                      <Button variant="danger" onClick={() => openDeleteModal(employee)}>
+                        Delete
+                      </Button>
                       <Button
                         variant="ghost"
                         disabled={mfaResetMutation.isPending}
@@ -355,6 +380,14 @@ export function EmployeesPage(): JSX.Element {
           />
         )}
       </Modal>
+
+      <ConfirmDeleteModal
+        itemLabel={deletingEmployee ? `employee "${deletingEmployee.username}"` : null}
+        isPending={deleteMutation.isPending}
+        errorMessage={deleteErrorMessage}
+        onConfirm={() => deletingEmployee && deleteMutation.mutate(deletingEmployee.employeeId)}
+        onClose={() => setDeletingEmployee(null)}
+      />
 
       <Modal
         isOpen={mfaResetResult !== null}

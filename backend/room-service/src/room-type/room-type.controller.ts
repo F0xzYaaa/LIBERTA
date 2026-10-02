@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseIntPipe,
   Patch,
@@ -60,5 +63,18 @@ export class RoomTypeController {
     @Req() req: RequestWithUser,
   ) {
     return this.roomTypeService.update(id, dto, req.user.sub);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('Admin')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Admin-only: delete a room type that no room uses' })
+  @ApiResponse({ status: 204 })
+  @ApiResponse({ status: 404, description: 'Room type not found' })
+  @ApiResponse({ status: 409, description: 'Rooms still use this room type' })
+  remove(@Param('id', ParseIntPipe) id: number, @Req() req: RequestWithUser): Promise<void> {
+    return this.roomTypeService.delete(id, req.user.sub);
   }
 }

@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseIntPipe,
   Patch,
@@ -65,5 +68,18 @@ export class RoomController {
     @Req() req: RequestWithUser,
   ) {
     return this.roomService.update(id, dto, req.user.sub);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('Admin')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Admin-only: delete a room that has no bookings' })
+  @ApiResponse({ status: 204 })
+  @ApiResponse({ status: 404, description: 'Room not found' })
+  @ApiResponse({ status: 409, description: 'Room has bookings and cannot be deleted' })
+  remove(@Param('id', ParseIntPipe) id: number, @Req() req: RequestWithUser): Promise<void> {
+    return this.roomService.delete(id, req.user.sub);
   }
 }

@@ -28,6 +28,7 @@ describe('AuthService', () => {
     findOne: jest.Mock;
     create: jest.Mock;
     save: jest.Mock;
+    delete: jest.Mock;
     createQueryBuilder: jest.Mock;
   };
   let roleRepo: { findOne: jest.Mock };
@@ -62,6 +63,7 @@ describe('AuthService', () => {
       findOne: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
+      delete: jest.fn(),
       createQueryBuilder: jest.fn(),
     };
     roleRepo = { findOne: jest.fn() };
@@ -401,6 +403,37 @@ describe('AuthService', () => {
       employeeRepo.findOne.mockResolvedValue(null);
 
       await expect(service.findEmployeeById(999)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('deleteEmployee', () => {
+    it('deletes the employee and revokes their refresh token', async () => {
+      employeeRepo.findOne.mockResolvedValue({ ...activeEmployee });
+      employeeRepo.delete.mockResolvedValue({ affected: 1 });
+
+      await service.deleteEmployee(1, 2);
+
+      expect(employeeRepo.delete).toHaveBeenCalledWith({ employeeId: 1 });
+      expect(redis.del).toHaveBeenCalledWith('refresh_jti:1');
+    });
+
+    it('refuses to let an admin delete themselves', async () => {
+      await expect(service.deleteEmployee(2, 2)).rejects.toThrow(ForbiddenException);
+      expect(employeeRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('returns 409 when the employee appears in booking history', async () => {
+      employeeRepo.findOne.mockResolvedValue({ ...activeEmployee });
+      employeeRepo.delete.mockRejectedValue(Object.assign(new Error('FK'), { errno: 1451 }));
+
+      await expect(service.deleteEmployee(1, 2)).rejects.toThrow(ConflictException);
+      expect(redis.del).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException for an unknown employee', async () => {
+      employeeRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.deleteEmployee(999, 2)).rejects.toThrow(NotFoundException);
     });
   });
 

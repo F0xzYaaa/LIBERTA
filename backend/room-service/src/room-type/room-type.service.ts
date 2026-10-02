@@ -1,10 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SecurityLogger } from '../common/security-logger.service';
 import { CreateRoomTypeDto } from './dto/create-room-type.dto';
 import { UpdateRoomTypeDto } from './dto/update-room-type.dto';
 import { RoomType } from './entities/room-type.entity';
+
+// MySQL ER_ROW_IS_REFERENCED_2: the row is still referenced by a foreign key.
+const ER_ROW_IS_REFERENCED = 1451;
 
 @Injectable()
 export class RoomTypeService {
@@ -51,5 +54,25 @@ export class RoomTypeService {
     const saved = await this.repo.save(roomType);
     this.securityLogger.log('admin_action_room_type_update', { actingEmployeeId, roomTypeId });
     return saved;
+  }
+
+  /**
+   * Deletes a room type only when no room uses it. Room has a plain FK to
+   * RoomType, so MySQL refuses the delete while rooms remain; that refusal is
+   * mapped to 409 rather than pre-checked, so the rule cannot race.
+   */
+  async delete(roomTypeId: number, actingEmployeeId: number): Promise<void> {
+    const roomType = await this.findById(roomTypeId);
+    try {
+      await this.repo.delete({ roomTypeId });
+    } catch (err) {
+      if ((err as { errno?: number })?.errno === ER_ROW_IS_REFERENCED) {
+        throw new ConflictException(
+          `Cannot delete room type "${roomType.typeName}": rooms still use it. Delete or reassign those rooms first.`,
+        );
+      }
+      throw err;
+    }
+    this.securityLogger.log('admin_action_room_type_delete', { actingEmployeeId, roomTypeId });
   }
 }

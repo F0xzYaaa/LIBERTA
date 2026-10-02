@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AxiosError, AxiosHeaders } from 'axios';
@@ -132,5 +132,59 @@ describe('EmployeesPage self-lockout protection', () => {
     expect(await screen.findByText('NEWKEY123456')).toBeInTheDocument();
     expect(screen.getByText('NEW-0001')).toBeInTheDocument();
     expect(screen.getByText('MFA Reset for staffuser')).toBeInTheDocument();
+  });
+});
+
+describe('EmployeesPage delete', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('places Delete between Edit and Reset MFA on each row', async () => {
+    vi.mocked(authApi.findAllEmployees).mockResolvedValue([OTHER]);
+
+    renderPage();
+    await screen.findByText('staffuser');
+
+    const labels = screen
+      .getAllByRole('button')
+      .map((button) => button.textContent)
+      .filter((text) => ['Edit', 'Delete', 'Reset MFA'].includes(text ?? ''));
+    expect(labels).toEqual(['Edit', 'Delete', 'Reset MFA']);
+  });
+
+  it('asks for confirmation, then deletes the employee', async () => {
+    vi.mocked(authApi.findAllEmployees).mockResolvedValue([OTHER]);
+    vi.mocked(authApi.deleteEmployee).mockResolvedValue(undefined);
+
+    renderPage();
+    const user = userEvent.setup();
+    await screen.findByText('staffuser');
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(authApi.deleteEmployee).not.toHaveBeenCalled();
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('employee "staffuser"');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(authApi.deleteEmployee).toHaveBeenCalledWith(2));
+  });
+
+  it('shows the server message when the employee is in booking history (409)', async () => {
+    vi.mocked(authApi.findAllEmployees).mockResolvedValue([OTHER]);
+    vi.mocked(authApi.deleteEmployee).mockRejectedValue(
+      makeAxiosError(409, 'Cannot delete "staffuser": they appear in booking history.'),
+    );
+
+    renderPage();
+    const user = userEvent.setup();
+    await screen.findByText('staffuser');
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    expect(await within(dialog).findByText(/appear in booking history/)).toBeInTheDocument();
   });
 });
